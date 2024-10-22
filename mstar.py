@@ -1,4 +1,7 @@
 import logging
+from sklearn.model_selection import train_test_split
+from torchvision import transforms
+
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -20,8 +23,7 @@ from anomalib.data.utils import (
 
 logger = logging.getLogger(__name__)
 
-
-IMG_EXTENSIONS = (".JPG", ".jpg")
+IMG_EXTENSIONS = (".png", ".PNG")
 
 DOWNLOAD_INFO = DownloadInfo(
     name="mstar",
@@ -31,22 +33,24 @@ DOWNLOAD_INFO = DownloadInfo(
 
 CATEGORIES = (
     "2S1",
-    "BRDM_2",
+    "BMP2",
+    "BRDM2",
     "BTR60",
+    "BTR70",
     "D7",
-    "SLICY",
     "T62",
     "T72",
     "ZIL131",
-    "ZSU_23_4",
+    "ZSU23"
 )
 
 
 def make_mstar_dataset(
     root: str | Path,
     split: str | Split | None = None,
+    split_ratio: float = 0.8,
     extensions: Sequence[str] | None = None,
-) -> DataFrame:
+) -> tuple[DataFrame, DataFrame]:
     """Create MSTAR samples by parsing the MSTAR data file structure.
 
     The files are expected to follow the structure:
@@ -115,7 +119,8 @@ def make_mstar_dataset(
     # assign mask paths to anomalous test images
     samples["mask_path"] = ""
     samples.loc[
-        (samples.split == "test") & (samples.label_index == LabelName.ABNORMAL),
+        # (samples.split == "test") & (samples.label_index == LabelName.ABNORMAL),
+        (samples.label_index == LabelName.ABNORMAL),
         "mask_path",
     ] = mask_samples.image_path.to_numpy()
 
@@ -129,12 +134,19 @@ def make_mstar_dataset(
         he mask files in 'ground_truth' folder follow the same naming convention as the
         anomalous images in the dataset (e.g. image: '000.png', mask: '000.png' or '000_mask.png')."""
         raise MisMatchError(msg)
+    print(f"Samples: {len(samples)}")
+    train_samples, test_samples = train_test_split(
+        samples, 
+        train_size=split_ratio, 
+        stratify=samples["label"]  # Ensuring stratified sampling based on label
+    )
 
-    if split:
-        samples = samples[samples.split == split].reset_index(drop=True)
-
-    return samples
-
+    if split == "train":
+        return train_samples.reset_index(drop=True)
+    elif split == "test":
+        return test_samples.reset_index(drop=True)
+    else:
+        return samples
 
 class MSTARDataset(AnomalibDataset):
     """MSTAR dataset class.
@@ -192,13 +204,15 @@ class MSTARDataset(AnomalibDataset):
         category: str = "T72",
         transform: Transform | None = None,
         split: str | Split | None = None,
+        split_ratio: float = 0.8,
     ) -> None:
         super().__init__(task=task, transform=transform)
 
         self.root_category = Path(root) / Path(category)
         self.category = category
         self.split = split
-        self.samples = make_mstar_dataset(self.root_category, split=self.split, extensions=IMG_EXTENSIONS)
+        self.split_ratio = split_ratio
+        self.samples = make_mstar_dataset(self.root_category, split=self.split, split_ratio=self.split_ratio, extensions=IMG_EXTENSIONS)
 
 
 class MSTAR(AnomalibDataModule):
@@ -277,15 +291,15 @@ class MSTAR(AnomalibDataModule):
         train_batch_size: int = 32,
         eval_batch_size: int = 32,
         num_workers: int = 8,
-        task: TaskType | str = TaskType.SEGMENTATION,
-        image_size: tuple[int, int] | None = None,
+        task: TaskType | str = TaskType.DETECTION, #TODO
+        image_size: tuple[int, int] | None = None, 
         transform: Transform | None = None,
         train_transform: Transform | None = None,
         eval_transform: Transform | None = None,
         test_split_mode: TestSplitMode | str = TestSplitMode.FROM_DIR,
-        test_split_ratio: float = 0.2,
+        test_split_ratio: float = 0.8,
         val_split_mode: ValSplitMode | str = ValSplitMode.SAME_AS_TEST,
-        val_split_ratio: float = 0.5,
+        val_split_ratio: float = 0.8,
         seed: int | None = None,
     ) -> None:
         super().__init__(
@@ -323,6 +337,7 @@ class MSTAR(AnomalibDataModule):
             task=self.task,
             transform=self.train_transform,
             split=Split.TRAIN,
+            split_ratio=self.val_split_ratio,
             root=self.root,
             category=self.category,
         )
@@ -330,9 +345,12 @@ class MSTAR(AnomalibDataModule):
             task=self.task,
             transform=self.eval_transform,
             split=Split.TEST,
+            split_ratio=self.test_split_ratio,
             root=self.root,
             category=self.category,
         )
+        print(f"Number of training samples: {len(self.train_data)}")
+        print(f"Number of testing samples: {len(self.test_data)}")
 
     def prepare_data(self) -> None:
         """Download the dataset if not available.
@@ -358,7 +376,7 @@ class MSTAR(AnomalibDataModule):
 
             .. code-block:: python
 
-                >> datamodule = MVTec(root="./datasets/MVTec", category="bottle")
+                >> datamodule = MSTAR(root="./datasets/MSTAR", category="bottle")
                 >> datamodule.prepare_data()
 
             After:
@@ -369,10 +387,10 @@ class MSTAR(AnomalibDataModule):
                 datasets
                 ├── dataset1
                 ├── dataset2
-                └── MVTec
-                    ├── bottle
+                └── MSTAR
+                    ├──T72
                     ├── ...
-                    └── zipper
+                    └── 2S1
         """
         if (self.root / self.category).is_dir():
             logger.info("Found the dataset.")
