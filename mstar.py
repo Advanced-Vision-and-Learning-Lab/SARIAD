@@ -1,398 +1,213 @@
-import logging
-from sklearn.model_selection import train_test_split
-from torchvision import transforms
-
-from collections.abc import Sequence
-from pathlib import Path
-
-from pandas import DataFrame
-from torchvision.transforms.v2 import Transform
-
+import json, glob, os, cv2, mstar_importer
+import numpy as np
+import matplotlib.pyplot as plt
+from anomalib.data import Folder
 from anomalib import TaskType
-from anomalib.data.base import AnomalibDataModule, AnomalibDataset
-from anomalib.data.errors import MisMatchError
-from anomalib.data.utils import (
-    DownloadInfo,
-    LabelName,
-    Split,
-    TestSplitMode,
-    ValSplitMode,
-    download_and_extract,
-    validate_path,
-)
+from PIL import Image
+from sklearn.cluster import KMeans
+from scipy.ndimage import gaussian_filter
+from absl import flags
+project_root = os.path.dirname(os.path.abspath(__file__))
 
-logger = logging.getLogger(__name__)
+class MSTAR(Folder):
+    def __init__(self, collection='soc', is_train=True, task=TaskType.CLASSIFICATION):
+        self.dataset = collection
+        self.image_root = 'datasets/PLMSTAR'
+        self.is_train = is_train
+        self.s = 'train' if self.is_train else 'test'
+        self.chip_size = 100
+        self.patch_size = 100
+        self.use_phase = False
+        self.output_root = os.path.join(self.image_root, self.dataset, self.s)
 
-IMG_EXTENSIONS = (".png", ".PNG")
+        # Check if the main directory exists; if not, generate the dataset
+        if not os.path.exists(self.output_root):
+            self.generate()
 
-DOWNLOAD_INFO = DownloadInfo(
-    name="mstar",
-    url="",
-    hashsum="b21adfc75782e0828f1cc3e5055edfe0c78d303bf1ace82e444822c451830726",
-)
-
-CATEGORIES = (
-    "2S1",
-    "BMP2",
-    "BRDM2",
-    "BTR60",
-    "BTR70",
-    "D7",
-    "T62",
-    "T72",
-    "ZIL131",
-    "ZSU23"
-)
-
-
-def make_mstar_dataset(
-    root: str | Path,
-    split: str | Split | None = None,
-    split_ratio: float = 0.8,
-    extensions: Sequence[str] | None = None,
-) -> tuple[DataFrame, DataFrame]:
-    """Create MSTAR samples by parsing the MSTAR data file structure.
-
-    The files are expected to follow the structure:
-        path/to/dataset/split/category/image_filename.png
-        path/to/dataset/ground_truth/category/mask_filename.png
-
-    This function creates a dataframe to store the parsed information based on the following format:
-
-    +---+---------------+-------+---------+---------------+---------------------------------------+-------------+
-    |   | path          | split | label   | image_path    | mask_path                             | label_index |
-    +===+===============+=======+=========+===============+=======================================+=============+
-    | 0 | datasets/name | test  | defect  | filename.png  | ground_truth/defect/filename_mask.png | 1           |
-    +---+---------------+-------+---------+---------------+---------------------------------------+-------------+
-
-    Args:
-        root (Path): Path to dataset
-        split (str | Split | None, optional): Dataset split (ie., either train or test).
-            Defaults to ``None``.
-        extensions (Sequence[str] | None, optional): List of file extensions to be included in the dataset.
-            Defaults to ``None``.
-
-    Examples:
-        The following example shows how to get training samples from MSTAR T72 category:
-
-        >>> root = Path('./MSTAR')
-        >>> category = 'T72'
-        >>> path = root / category
-        >>> path
-        PosixPath('MSTAR/T72')
-
-        >>> samples = make_mvtec_dataset(path, split='train', split_ratio=0.1, seed=0)
-        >>> samples.head()
-           path      split label image_path                   mask_path                                label_index
-        0  MSTAR/T72 train good  MSTAR/T72/train/good/105.png MSTAR/T72/ground_truth/good/105_mask.png 0
-        1  MSTAR/T72 train good  MSTAR/T72/train/good/017.png MSTAR/T72/ground_truth/good/017_mask.png 0
-        2  MSTAR/T72 train good  MSTAR/T72/train/good/137.png MSTAR/T72/ground_truth/good/137_mask.png 0
-        3  MSTAR/T72 train good  MSTAR/T72/train/good/152.png MSTAR/T72/ground_truth/good/152_mask.png 0
-        4  MSTAR/T72 train good  MSTAR/T72/train/good/109.png MSTAR/T72/ground_truth/good/109_mask.png 0
-
-    Returns:
-        DataFrame: an output dataframe containing the samples of the dataset.
-    """
-    if extensions is None:
-        extensions = IMG_EXTENSIONS
-
-    root = validate_path(root)
-    samples_list = [(str(root),) + f.parts[-3:] for f in root.glob(r"**/*") if f.suffix in extensions]
-    if not samples_list:
-        msg = f"Found 0 images in {root}"
-        raise RuntimeError(msg)
-
-    samples = DataFrame(samples_list, columns=["path", "split", "label", "image_path"])
-
-    # Modify image_path column by converting to absolute path
-    samples["image_path"] = samples.path + "/" + samples.split + "/" + samples.label + "/" + samples.image_path
-
-    # Create label index for normal (0) and anomalous (1) images.
-    samples.loc[(samples.label == "good"), "label_index"] = LabelName.NORMAL
-    samples.loc[(samples.label != "good"), "label_index"] = LabelName.ABNORMAL
-    samples.label_index = samples.label_index.astype(int)
-
-    # separate masks from samples
-    mask_samples = samples.loc[samples.split == "ground_truth"].sort_values(by="image_path", ignore_index=True)
-    samples = samples[samples.split != "ground_truth"].sort_values(by="image_path", ignore_index=True)
-
-    # assign mask paths to anomalous test images
-    samples["mask_path"] = ""
-    samples.loc[
-        # (samples.split == "test") & (samples.label_index == LabelName.ABNORMAL),
-        (samples.label_index == LabelName.ABNORMAL),
-        "mask_path",
-    ] = mask_samples.image_path.to_numpy()
-
-    # assert that the right mask files are associated with the right test images
-    abnormal_samples = samples.loc[samples.label_index == LabelName.ABNORMAL]
-    if (
-        len(abnormal_samples)
-        and not abnormal_samples.apply(lambda x: Path(x.image_path).stem in Path(x.mask_path).stem, axis=1).all()
-    ):
-        msg = """Mismatch between anomalous images and ground truth masks. Make sure t
-        he mask files in 'ground_truth' folder follow the same naming convention as the
-        anomalous images in the dataset (e.g. image: '000.png', mask: '000.png' or '000_mask.png')."""
-        raise MisMatchError(msg)
-    print(f"Samples: {len(samples)}")
-    train_samples, test_samples = train_test_split(
-        samples, 
-        train_size=split_ratio, 
-        stratify=samples["label"]  # Ensuring stratified sampling based on label
-    )
-
-    if split == "train":
-        return train_samples.reset_index(drop=True)
-    elif split == "test":
-        return test_samples.reset_index(drop=True)
-    else:
-        return samples
-
-class MSTARDataset(AnomalibDataset):
-    """MSTAR dataset class.
-
-    Args:
-        task (TaskType): Task type, ``classification``, ``detection`` or ``segmentation``.
-        root (Path | str): Path to the root of the dataset.
-            Defaults to ``./datasets/MSTAR``.
-        category (str): Sub-category of the dataset, e.g. 'T72'
-            Defaults to ``T72``.
-        transform (Transform, optional): Transforms that should be applied to the input images.
-            Defaults to ``None``.
-        split (str | Split | None): Split of the dataset, usually Split.TRAIN or Split.TEST
-            Defaults to ``None``.
-
-    Examples:
-        .. code-block:: python
-
-            from anomalib.data.image.mstar import MSTARDataset
-            from anomalib.data.utils.transforms import get_transforms
-
-            transform = get_transforms(image_size=256)
-            dataset = MSTARDataset(
-                task="classification",
-                transform=transform,
-                root='./datasets/MSTAR',
-                category='zipper',
-            )
-            dataset.setup()
-            print(dataset[0].keys())
-            # Output: dict_keys(['image_path', 'label', 'image'])
-
-        When the task is segmentation, the dataset will also contain the mask:
-
-        .. code-block:: python
-
-            dataset.task = "segmentation"
-            dataset.setup()
-            print(dataset[0].keys())
-            # Output: dict_keys(['image_path', 'label', 'image', 'mask_path', 'mask'])
-
-        The image is a torch tensor of shape (C, H, W) and the mask is a torch tensor of shape (H, W).
-
-        .. code-block:: python
-
-            print(dataset[0]["image"].shape, dataset[0]["mask"].shape)
-            # Output: (torch.Size([3, 256, 256]), torch.Size([256, 256]))
-
-    """
-
-    def __init__(
-        self,
-        task: TaskType,
-        root: Path | str = "./datasets/MSTAR",
-        category: str = "T72",
-        transform: Transform | None = None,
-        split: str | Split | None = None,
-        split_ratio: float = 0.8,
-    ) -> None:
-        super().__init__(task=task, transform=transform)
-
-        self.root_category = Path(root) / Path(category)
-        self.category = category
-        self.split = split
-        self.split_ratio = split_ratio
-        self.samples = make_mstar_dataset(self.root_category, split=self.split, split_ratio=self.split_ratio, extensions=IMG_EXTENSIONS)
-
-
-class MSTAR(AnomalibDataModule):
-    """MSTAR Datamodule.
-
-    Args:
-        root (Path | str): Path to the root of the dataset.
-            Defaults to ``"./datasets/MSTAR"``.
-        category (str): Category of the MSATAR dataset (e.g. "T72" or "2S1").
-            Defaults to ``"T72"``.
-        train_batch_size (int, optional): Training batch size.
-            Defaults to ``32``.
-        eval_batch_size (int, optional): Test batch size.
-            Defaults to ``32``.
-        num_workers (int, optional): Number of workers.
-            Defaults to ``8``.
-        task TaskType): Task type, 'classification', 'detection' or 'segmentation'
-            Defaults to ``TaskType.SEGMENTATION``.
-        image_size (tuple[int, int], optional): Size to which input images should be resized.
-            Defaults to ``None``.
-        transform (Transform, optional): Transforms that should be applied to the input images.
-            Defaults to ``None``.
-        train_transform (Transform, optional): Transforms that should be applied to the input images during training.
-            Defaults to ``None``.
-        eval_transform (Transform, optional): Transforms that should be applied to the input images during evaluation.
-            Defaults to ``None``.
-        test_split_mode (TestSplitMode): Setting that determines how the testing subset is obtained.
-            Defaults to ``TestSplitMode.FROM_DIR``.
-        test_split_ratio (float): Fraction of images from the train set that will be reserved for testing.
-            Defaults to ``0.2``.
-        val_split_mode (ValSplitMode): Setting that determines how the validation subset is obtained.
-            Defaults to ``ValSplitMode.SAME_AS_TEST``.
-        val_split_ratio (float): Fraction of train or test images that will be reserved for validation.
-            Defaults to ``0.5``.
-        seed (int | None, optional): Seed which may be set to a fixed value for reproducibility.
-            Defualts to ``None``.
-
-    Examples:
-        To create an MSTAR datamodule with default settings:
-
-        >>> datamodule = Mstar()
-        >>> datamodule.setup()
-        >>> i, data = next(enumerate(datamodule.train_dataloader()))
-        >>> data.keys()
-        dict_keys(['image_path', 'label', 'image', 'mask_path', 'mask'])
-
-        >>> data["image"].shape
-        torch.Size([32, 3, 256, 256])
-
-        To change the category of the dataset:
-
-        >>> datamodule = MSTAR(category="2S1")
-
-        To change the image and batch size:
-
-        >>> datamodule = MSTAR(image_size=(512, 512), train_batch_size=16, eval_batch_size=8)
-
-        MSTAR dataset does not provide a validation set. If you would like
-        to use a separate validation set, you can use the ``val_split_mode`` and
-        ``val_split_ratio`` arguments to create a validation set.
-
-        >>> datamodule = MSTAR(val_split_mode=ValSplitMode.FROM_TEST, val_split_ratio=0.1)
-
-        This will subsample the test set by 10% and use it as the validation set.
-        If you would like to create a validation set synthetically that would
-        not change the test set, you can use the ``ValSplitMode.SYNTHETIC`` option.
-
-        >>> datamodule = MSTAR(val_split_mode=ValSplitMode.SYNTHETIC, val_split_ratio=0.2)
-
-    """
-
-    def __init__(
-        self,
-        root: Path | str = "./datasets/MSTAR",
-        category: str = "T72",
-        train_batch_size: int = 32,
-        eval_batch_size: int = 32,
-        num_workers: int = 8,
-        task: TaskType | str = TaskType.DETECTION, #TODO
-        image_size: tuple[int, int] | None = None, 
-        transform: Transform | None = None,
-        train_transform: Transform | None = None,
-        eval_transform: Transform | None = None,
-        test_split_mode: TestSplitMode | str = TestSplitMode.FROM_DIR,
-        test_split_ratio: float = 0.8,
-        val_split_mode: ValSplitMode | str = ValSplitMode.SAME_AS_TEST,
-        val_split_ratio: float = 0.8,
-        seed: int | None = None,
-    ) -> None:
         super().__init__(
-            train_batch_size=train_batch_size,
-            eval_batch_size=eval_batch_size,
-            image_size=image_size,
-            transform=transform,
-            train_transform=train_transform,
-            eval_transform=eval_transform,
-            num_workers=num_workers,
-            test_split_mode=test_split_mode,
-            test_split_ratio=test_split_ratio,
-            val_split_mode=val_split_mode,
-            val_split_ratio=val_split_ratio,
-            seed=seed,
+            name="MSTAR",
+            root=f"./datasets/PLMSTAR/{self.dataset}/",
+            mask_dir=f"{self.s}/masks",
+            normal_dir=f"{self.s}/norm",
+            abnormal_dir=f"{self.s}/anom",
+            image_size=(256, 256),
+            train_batch_size=32,
+            eval_batch_size=32,
+            task=task,
         )
+        self.setup()
 
-        self.task = TaskType(task)
-        self.root = Path(root)
-        self.category = category
-
-    def _setup(self, _stage: str | None = None) -> None:
-        """Set up the datasets and perform dynamic subset splitting.
-
-        This method may be overridden in subclass for custom splitting behaviour.
-
-        Note:
-            The stage argument is not used here. This is because, for a given instance of an AnomalibDataModule
-            subclass, all three subsets are created at the first call of setup(). This is to accommodate the subset
-            splitting behaviour of anomaly tasks, where the validation set is usually extracted from the test set, and
-            the test set must therefore be created as early as the `fit` stage.
-
+    def generate_mask(self, image, n_clusters=2, sigma=1, kernel_size=50):
         """
-        self.train_data = MSTARDataset(
-            task=self.task,
-            transform=self.train_transform,
-            split=Split.TRAIN,
-            split_ratio=self.val_split_ratio,
-            root=self.root,
-            category=self.category,
-        )
-        self.test_data = MSTARDataset(
-            task=self.task,
-            transform=self.eval_transform,
-            split=Split.TEST,
-            split_ratio=self.test_split_ratio,
-            root=self.root,
-            category=self.category,
-        )
-        print(f"Number of training samples: {len(self.train_data)}")
-        print(f"Number of testing samples: {len(self.test_data)}")
-
-    def prepare_data(self) -> None:
-        """Download the dataset if not available.
-
-        This method checks if the specified dataset is available in the file system.
-        If not, it downloads and extracts the dataset into the appropriate directory.
-
-        Example:
-            Assume the dataset is not available on the file system.
-            Here's how the directory structure looks before and after calling the
-            `prepare_data` method:
-
-            Before:
-
-            .. code-block:: bash
-
-                $ tree datasets
-                datasets
-                ├── dataset1
-                └── dataset2
-
-            Calling the method:
-
-            .. code-block:: python
-
-                >> datamodule = MSTAR(root="./datasets/MSTAR", category="bottle")
-                >> datamodule.prepare_data()
-
-            After:
-
-            .. code-block:: bash
-
-                $ tree datasets
-                datasets
-                ├── dataset1
-                ├── dataset2
-                └── MSTAR
-                    ├──T72
-                    ├── ...
-                    └── 2S1
+        Generate a filled mask for the image using KMeans clustering,
+        with Gaussian blurring and morphological operations to fill shapes.
+        
+        Parameters:
+            image (np.array): The input image as a NumPy array.
+            n_clusters (int): The number of clusters for KMeans.
+            sigma (float): Standard deviation for Gaussian blur. Higher values increase blurring.
+            
+        Returns:
+            np.array: The filled mask with cluster labels for each pixel.
         """
-        if (self.root / self.category).is_dir():
-            logger.info("Found the dataset.")
-        else:
-            download_and_extract(self.root, DOWNLOAD_INFO)
+        # Apply Gaussian blur to reduce noise and speckling
+        imagec = image.copy()
+        smoothed_image = gaussian_filter(imagec, sigma=sigma)
+
+        # Flatten the smoothed image for KMeans clustering
+        reshaped_image = smoothed_image.reshape(-1, 1)
+
+        # Apply KMeans clustering
+        kmeans = KMeans(n_clusters=n_clusters, random_state=42)
+        kmeans.fit(reshaped_image)
+        labels = kmeans.labels_
+
+        # Reshape the result back to the original image shape
+        mask = labels.reshape(imagec.shape)
+
+        # Convert the mask to uint8 format for OpenCV
+        mask_uint8 = (mask * (255 // (n_clusters - 1))).astype(np.uint8)
+
+        # Apply morphological operations to fill in the shapes
+        circular_kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (kernel_size, kernel_size))
+        filled_mask = cv2.morphologyEx(mask_uint8, cv2.MORPH_CLOSE, circular_kernel)
+
+        num_labels, labels_im = cv2.connectedComponents(filled_mask.astype(np.uint8))
+
+        # Find the largest component by size
+        largest_label = 1  # Start from 1 to skip the background (0)
+        largest_size = 0
+        
+        for label in range(1, num_labels):
+            component_size = np.sum(labels_im == label)
+            if component_size > largest_size:
+                largest_size = component_size
+                largest_label = label
+
+        # Create a mask that keeps only the largest component
+        cleaned_mask = np.zeros_like(mask)
+        cleaned_mask[labels_im == largest_label] = 255  # Keep the largest component
+
+        return cleaned_mask
+
+    def apply_mask_to_image(self, image, mask):
+        """
+        Removes anomalies from an image by filling in the masked areas with values 
+        that follow the statistical distribution of surrounding pixels.
+        
+        Parameters:
+            image (np.array): The input image with anomalies.
+            mask (np.array): The mask indicating anomalous regions (non-zero values).
+            neighborhood_size (int): The size of the neighborhood to sample around anomalies.
+            
+        Returns:
+            np.array: The image with anomalies filled in.
+        """
+        output_image = image.copy()
+        normal_area = np.where(mask == 0)
+        
+        # Calculate mean and std of the normal (non-anomalous) area
+        normal_values = image[normal_area]
+        mean, std = np.mean(normal_values), np.std(normal_values)
+
+        output_image = image.copy()
+
+        # Calculate mean and std of the normal (non-anomalous) area
+        normal_values = image[mask == 0]
+        mean, std = np.mean(normal_values), np.std(normal_values)
+
+        # Apply changes only to masked (anomalous) areas
+        height, width, channels = mask.shape
+        for y in range(height):
+            for x in range(width):
+                # Check if the current position is an anomalous area
+                if mask[y, x, 0] != 0:  # Assuming mask is single-channel but has been expanded
+                    for c in range(channels):  # Iterate over each color channel
+                        output_image[y, x, c] = np.random.normal(mean, std)
+
+        return output_image
+            
+    def data_scaling(self, chip):
+        r = chip.max() - chip.min()
+        return (chip - chip.min()) / r
+
+    def log_scale(self, chip):
+        return np.log10(np.abs(chip) + 1)
+
+    def generate_cat(self, src_path, anom_dir, norm_dir, mask_dir, json_dir, is_train, chip_size, patch_size, use_phase, dataset):
+        if not os.path.exists(src_path):
+            print(f'{src_path} does not exist')
+            return
+
+        category_name = os.path.basename(src_path)
+
+        # Create category-specific subdirectories
+        category_anom_dir = os.path.join(anom_dir, category_name)
+        category_norm_dir = os.path.join(norm_dir, category_name)
+        category_mask_dir = os.path.join(mask_dir, category_name)
+        category_json_dir = os.path.join(json_dir, category_name)
+
+        for directory in [category_anom_dir, category_norm_dir, category_mask_dir, category_json_dir]:
+            os.makedirs(directory, exist_ok=True)
+
+        print(f"Processing category: {category_name}")
+        _mstar = mstar_importer.MSTAR(
+            name=dataset, is_train=is_train, chip_size=chip_size, patch_size=patch_size, use_phase=use_phase, stride=1
+        )
+
+        # List of source images
+        image_list = glob.glob(os.path.join(src_path, '*'))
+
+        # Process each image
+        for path in image_list:
+            label, _images = _mstar.read(path)
+            for i, _image in enumerate(_images):
+                name = os.path.splitext(os.path.basename(path))[0]
+
+                # Save JSON metadata
+                with open(os.path.join(category_json_dir, f'{name}-{i}.json'), mode='w', encoding='utf-8') as f:
+                    json.dump(label, f, ensure_ascii=False, indent=2)
+
+                cv2.imwrite(os.path.join(category_anom_dir, f'{name}-{i}.png'), (_image * 255).astype(np.uint8))
+
+                # Generate mask and save it as PNG
+                mask = self.generate_mask(_image)
+                cv2.imwrite(os.path.join(category_mask_dir, f'{name}-{i}.png'), mask)
+
+                # Generate and save normal image as PNG
+                normal_image = self.apply_mask_to_image(_image, mask)
+                cv2.imwrite(os.path.join(category_norm_dir, f'{name}-{i}.png'), (normal_image * 255).astype(np.uint8))
+
+    def generate(self):
+        dataset_root = os.path.join(project_root, self.image_root, self.dataset)
+        raw_root = os.path.join(dataset_root, 'raw')
+        mode = 'train' if self.is_train else 'test'
+        output_root = os.path.join(dataset_root, mode)
+
+        # Create overall directories for `anom`, `norm`, `masks`, and `json`
+        anom_dir = os.path.join(output_root, 'anom')
+        norm_dir = os.path.join(output_root, 'norm')
+        mask_dir = os.path.join(output_root, 'masks')
+        json_dir = os.path.join(output_root, 'json')
+
+        for folder in [anom_dir, norm_dir, mask_dir, json_dir]:
+            os.makedirs(folder, exist_ok=True)
+
+        # Process each target category
+        for target in mstar_importer.target_name[self.dataset]:
+            self.generate_cat(
+                src_path=os.path.join(raw_root, mode, target),
+                anom_dir=anom_dir,
+                norm_dir=norm_dir,
+                mask_dir=mask_dir,
+                json_dir=json_dir,
+                is_train=self.is_train,
+                chip_size=self.chip_size,
+                patch_size=self.patch_size,
+                use_phase=self.use_phase,
+                dataset=self.dataset,
+            )
+
+#SHOULD BE RUN FOR TESTING ONLY
+if __name__ == "__main__":
+    MSTAR(is_train=False)
