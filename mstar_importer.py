@@ -88,10 +88,10 @@ class MSTAR(object):
         # _data = self._normalize(_data)
         _data = self._center_crop(_data)
 
-        if self.is_train:
-            _data = self._data_augmentation(_data, patch_size=self.patch_size, stride=self.stride)
-        else:
-            _data = [self._center_crop(_data, size=self.patch_size)]
+        # if self.is_train:
+        #     _data = self._data_augmentation(_data, patch_size=self.patch_size, stride=self.stride)
+        # else:
+        #     _data = [self._center_crop(_data, size=self.patch_size)]
 
         meta_label = self._extract_meta_label(_header)
         return meta_label, _data

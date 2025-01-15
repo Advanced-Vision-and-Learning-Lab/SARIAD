@@ -1,4 +1,4 @@
-import json, glob, os, cv2, mstar_importer
+import json, glob, os, cv2, mstar_importer, gdown
 import numpy as np
 import matplotlib.pyplot as plt
 from anomalib.data import Folder
@@ -7,10 +7,30 @@ from PIL import Image
 from sklearn.cluster import KMeans
 from scipy.ndimage import gaussian_filter
 from absl import flags
+
 project_root = os.path.dirname(os.path.abspath(__file__))
+DRIVE_FILE_ID = ""
+
+def fetch_plmstar_blob(drive_file_id):
+    """
+    Fetches the PLMSTAR blob from Google Drive if it does not already exist locally.
+    """
+    blob_path = os.path.join(project_root, "datasets/PLMSTAR")
+    if not os.path.exists(blob_path):
+        print("PLMSTAR dataset not found locally. Downloading...")
+        output_path = f"{blob_path}.zip"
+        gdown.download(f"https://drive.google.com/uc?id={drive_file_id}", output_path, quiet=False)
+        
+        import zipfile
+        with zipfile.ZipFile(output_path, 'r') as zip_ref:
+            zip_ref.extractall(blob_path)
+        os.remove(output_path)
+        print(f"Downloaded and extracted PLMSTAR dataset to {blob_path}.")
+    else:
+        print("PLMSTAR dataset found locally.")
 
 class MSTAR(Folder):
-    def __init__(self, collection='soc', is_train=True, task=TaskType.CLASSIFICATION):
+    def __init__(self, collection='soc', is_train=True, task=TaskType.CLASSIFICATION, target_filter=None):
         self.dataset = collection
         self.image_root = 'datasets/PLMSTAR'
         self.is_train = is_train
@@ -18,7 +38,13 @@ class MSTAR(Folder):
         self.chip_size = 100
         self.patch_size = 100
         self.use_phase = False
+        self.train_batch_size = 1
+        self.eval_batch_size = 1
+        self.target_filter = target_filter
         self.output_root = os.path.join(self.image_root, self.dataset, self.s)
+        self.image_size=(128,128)
+
+        fetch_plmstar_blob(f"{DRIVE_FILE_ID}")
 
         # Check if the main directory exists; if not, generate the dataset
         if not os.path.exists(self.output_root):
@@ -30,9 +56,9 @@ class MSTAR(Folder):
             mask_dir=f"{self.s}/masks",
             normal_dir=f"{self.s}/norm",
             abnormal_dir=f"{self.s}/anom",
-            image_size=(256, 256),
-            train_batch_size=32,
-            eval_batch_size=32,
+            image_size=self.image_size,
+            train_batch_size=self.train_batch_size,
+            eval_batch_size=self.eval_batch_size,
             task=task,
         )
         self.setup()
@@ -117,13 +143,13 @@ class MSTAR(Folder):
         mean, std = np.mean(normal_values), np.std(normal_values)
 
         # Apply changes only to masked (anomalous) areas
-        height, width, channels = mask.shape
+        height, width, _ = mask.shape  # No need to unpack channels anymore
         for y in range(height):
             for x in range(width):
                 # Check if the current position is an anomalous area
-                if mask[y, x, 0] != 0:  # Assuming mask is single-channel but has been expanded
-                    for c in range(channels):  # Iterate over each color channel
-                        output_image[y, x, c] = np.random.normal(mean, std)
+                if mask[y, x] != 0:  # Assuming mask is single-channel (grayscale)
+                    # Replace the pixel value with a random value from a normal distribution
+                    output_image[y, x] = np.random.normal(mean, std)
 
         return output_image
             
@@ -160,23 +186,30 @@ class MSTAR(Folder):
 
         # Process each image
         for path in image_list:
-            label, _images = _mstar.read(path)
-            for i, _image in enumerate(_images):
-                name = os.path.splitext(os.path.basename(path))[0]
+            label, _image = _mstar.read(path)
+            i = 0
+            # for i, _image in enumerate(_images):
+            name = os.path.splitext(os.path.basename(path))[0]
 
-                # Save JSON metadata
-                with open(os.path.join(category_json_dir, f'{name}-{i}.json'), mode='w', encoding='utf-8') as f:
-                    json.dump(label, f, ensure_ascii=False, indent=2)
+            # Save JSON metadata
+            with open(os.path.join(category_json_dir, f'{name}-{i}.json'), mode='w', encoding='utf-8') as f:
+                json.dump(label, f, ensure_ascii=False, indent=2)
 
-                cv2.imwrite(os.path.join(category_anom_dir, f'{name}-{i}.png'), (_image * 255).astype(np.uint8))
+            # Save the image with proper casting
+            _image = np.nan_to_num(_image, nan=0.0, posinf=0.0, neginf=0.0)  # Remove invalid values
+            cv2.imwrite(os.path.join(category_anom_dir, f'{name}-{i}.png'), (_image * 255).astype(np.uint8))
 
-                # Generate mask and save it as PNG
-                mask = self.generate_mask(_image)
+            # Generate mask and save it as PNG
+            mask = self.generate_mask(_image)
+            if mask.size > 0:  # Ensure mask is not empty
                 cv2.imwrite(os.path.join(category_mask_dir, f'{name}-{i}.png'), mask)
+            else:
+                print(f"Warning: Empty mask for image {name}-{i}")
 
-                # Generate and save normal image as PNG
-                normal_image = self.apply_mask_to_image(_image, mask)
-                cv2.imwrite(os.path.join(category_norm_dir, f'{name}-{i}.png'), (normal_image * 255).astype(np.uint8))
+            # Apply mask to the image and save the normal image as PNG
+            normal_image = self.apply_mask_to_image(_image, mask)
+            normal_image = np.nan_to_num(normal_image, nan=0.0, posinf=0.0, neginf=0.0)  # Ensure valid values
+            cv2.imwrite(os.path.join(category_norm_dir, f'{name}-{i}.png'), (normal_image * 255).astype(np.uint8))
 
     def generate(self):
         dataset_root = os.path.join(project_root, self.image_root, self.dataset)
@@ -193,6 +226,11 @@ class MSTAR(Folder):
         for folder in [anom_dir, norm_dir, mask_dir, json_dir]:
             os.makedirs(folder, exist_ok=True)
 
+        # Filter targets if a target_filter is specified
+        target_list = mstar_importer.target_name[self.dataset]
+        if self.target_filter:
+            target_list = [target for target in target_list if target in self.target_filter]
+
         # Process each target category
         for target in mstar_importer.target_name[self.dataset]:
             self.generate_cat(
@@ -208,6 +246,6 @@ class MSTAR(Folder):
                 dataset=self.dataset,
             )
 
-#SHOULD BE RUN FOR TESTING ONLY
+# SHOULD BE RUN FOR TESTING ONLY
 if __name__ == "__main__":
     MSTAR(is_train=False)
