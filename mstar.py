@@ -9,7 +9,7 @@ from scipy.ndimage import gaussian_filter
 from absl import flags
 
 project_root = os.path.dirname(os.path.abspath(__file__))
-DRIVE_FILE_ID = "1drDQvcGIqTpdU-RN_xswfRuCyLj6XlNB"
+DRIVE_FILE_ID = "1TT3SrDMW8ICcknoAXXZLLCLk0X6L1nAL"
 
 def fetch_plmstar_blob(drive_file_id):
     """
@@ -24,7 +24,7 @@ def fetch_plmstar_blob(drive_file_id):
         import zipfile
         print("Unzipping...")
         with zipfile.ZipFile(output_path, 'r') as zip_ref:
-            zip_ref.extractall(blob_path)
+            zip_ref.extractall("datasets/")
         os.remove(output_path)
         print(f"Downloaded and extracted PLMSTAR dataset to {blob_path}.")
     else:

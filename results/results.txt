@@ -1,0 +1,121 @@
+Results for Target: all_targets
+TP: 2418, TN: 2237, FP: 7, FN: 188
+Accuracy: 0.9598
+Precision: 0.9971
+Recall/TPR/FDR/Sensitivity: 0.9279
+F1 Score: 0.9612
+Specificity: 0.9969
+G-mean: 0.9618
+Missed Alarm Rate: 0.0721
+False Alarm Rate: 0.0031
+
+Results for Target: 2S1
+TP: 274, TN: 242, FP: 0, FN: 32
+Accuracy: 0.9416
+Precision: 1.0000
+Recall/TPR/FDR/Sensitivity: 0.8954
+F1 Score: 0.9448
+Specificity: 1.0000
+G-mean: 0.9463
+Missed Alarm Rate: 0.1046
+False Alarm Rate: 0.0000
+
+Results for Target: BMP2
+TP: 190, TN: 186, FP: 5, FN: 9
+Accuracy: 0.9641
+Precision: 0.9744
+Recall/TPR/FDR/Sensitivity: 0.9548
+F1 Score: 0.9645
+Specificity: 0.9738
+G-mean: 0.9643
+Missed Alarm Rate: 0.0452
+False Alarm Rate: 0.0262
+
+Results for Target: BRDM2
+TP: 272, TN: 257, FP: 2, FN: 17
+Accuracy: 0.9653
+Precision: 0.9927
+Recall/TPR/FDR/Sensitivity: 0.9412
+F1 Score: 0.9663
+Specificity: 0.9923
+G-mean: 0.9664
+Missed Alarm Rate: 0.0588
+False Alarm Rate: 0.0077
+
+Results for Target: BTR60
+TP: 195, TN: 185, FP: 0, FN: 10
+Accuracy: 0.9744
+Precision: 1.0000
+Recall/TPR/FDR/Sensitivity: 0.9512
+F1 Score: 0.9750
+Specificity: 1.0000
+G-mean: 0.9753
+Missed Alarm Rate: 0.0488
+False Alarm Rate: 0.0000
+
+Results for Target: BTR70
+TP: 196, TN: 193, FP: 0, FN: 3
+Accuracy: 0.9923
+Precision: 1.0000
+Recall/TPR/FDR/Sensitivity: 0.9849
+F1 Score: 0.9924
+Specificity: 1.0000
+G-mean: 0.9924
+Missed Alarm Rate: 0.0151
+False Alarm Rate: 0.0000
+
+Results for Target: D7
+TP: 274, TN: 251, FP: 0, FN: 23
+Accuracy: 0.9580
+Precision: 1.0000
+Recall/TPR/FDR/Sensitivity: 0.9226
+F1 Score: 0.9597
+Specificity: 1.0000
+G-mean: 0.9605
+Missed Alarm Rate: 0.0774
+False Alarm Rate: 0.0000
+
+Results for Target: T62
+TP: 273, TN: 254, FP: 0, FN: 19
+Accuracy: 0.9652
+Precision: 1.0000
+Recall/TPR/FDR/Sensitivity: 0.9349
+F1 Score: 0.9664
+Specificity: 1.0000
+G-mean: 0.9669
+Missed Alarm Rate: 0.0651
+False Alarm Rate: 0.0000
+
+Results for Target: T72
+TP: 196, TN: 188, FP: 0, FN: 8
+Accuracy: 0.9796
+Precision: 1.0000
+Recall/TPR/FDR/Sensitivity: 0.9608
+F1 Score: 0.9800
+Specificity: 1.0000
+G-mean: 0.9802
+Missed Alarm Rate: 0.0392
+False Alarm Rate: 0.0000
+
+Results for Target: ZIL131
+TP: 274, TN: 238, FP: 0, FN: 36
+Accuracy: 0.9343
+Precision: 1.0000
+Recall/TPR/FDR/Sensitivity: 0.8839
+F1 Score: 0.9384
+Specificity: 1.0000
+G-mean: 0.9401
+Missed Alarm Rate: 0.1161
+False Alarm Rate: 0.0000
+
+Results for Target: ZSU234
+TP: 274, TN: 243, FP: 0, FN: 31
+Accuracy: 0.9434
+Precision: 1.0000
+Recall/TPR/FDR/Sensitivity: 0.8984
+F1 Score: 0.9465
+Specificity: 1.0000
+G-mean: 0.9478
+Missed Alarm Rate: 0.1016
+False Alarm Rate: 0.0000
+
