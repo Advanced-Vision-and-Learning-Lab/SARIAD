@@ -173,44 +173,6 @@ class MSTAR(Folder):
 
         return final_mask
 
-    # def apply_mask_to_image(self, image, mask):
-    #     """
-    #     Removes anomalies from an image by filling in the masked areas with values 
-    #     that follow the statistical distribution of surrounding pixels.
-        
-    #     Parameters:
-    #         image (np.array): The input image with anomalies.
-    #         mask (np.array): The mask indicating anomalous regions (non-zero values).
-            
-    #     Returns:
-    #         np.array: The image with anomalies filled in.
-    #     """
-
-    #     # Create the output image by setting masked areas to black (0)
-
-    #     output_image = image.copy()
-    #     output_image[mask == 1] = 0
-
-    #     # # Plot the images
-    #     # plt.figure(figsize=(15, 5))  # Set the figure size
-        
-    #     # # Show the original image
-    #     # plt.subplot(1, 2, 1)  # (rows, columns, index)
-    #     # plt.imshow(image, cmap='gray')
-    #     # plt.title("Original Image")
-    #     # plt.axis("off")  # Hide axes
-
-    #     # # Show the output image with anomalies filled
-    #     # plt.subplot(1, 2, 2)  # (rows, columns, index)
-    #     # plt.imshow(output_image, cmap='gray')
-    #     # plt.title("Masked Out Image")
-    #     # plt.axis("off")
-        
-    #     # plt.show()
-
-    #     return output_image
-
-
     def apply_mask_to_image(self, image, mask):
         """
         Fills in the masked areas of the image by randomly picking pixels from the
