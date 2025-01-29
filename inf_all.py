@@ -11,7 +11,7 @@ from math import sqrt
 tp, fp, tn, fn = 0, 0, 0, 0
 
 # Define paths
-dataset_path = "./datasets/PLMSTAR/soc/train"
+dataset_path = "./datasets/PLMSTAR/soc/test"
 openvino_model_path = "./weights/openvino/weights/openvino/model.bin"
 metadata_path = "./weights/openvino/weights/openvino/metadata.json"
 
@@ -30,50 +30,54 @@ os.makedirs(output_directory, exist_ok=True)
 
 def process_images(base_path, label_type):
     pred_scores, pred_labels = [], []
-    for class_dir in os.listdir(base_path):
-        class_path = os.path.join(base_path, class_dir)
-        if not os.path.isdir(class_path):
-            continue  # Skip non-directory files
-        for image_file in os.listdir(class_path):
-            image_path = os.path.join(class_path, image_file)
+    
+    # Check if the base_path itself contains images (specific target case)
+    if all(file.endswith(('.jpg', '.png', '.jpeg')) for file in os.listdir(base_path)):
+        for image_file in os.listdir(base_path):
+            image_path = os.path.join(base_path, image_file)
             
             # Read and preprocess the image
             image = read_image(path=image_path)
-            target_size = (128, 128)  # Match model's expected size
-
-            # Ensure resizing
-            image_resized = cv2.resize(image, target_size)
-
-            # Convert to RGB if needed
-            if image_resized.ndim == 2:  # Grayscale image
-                image_resized = cv2.cvtColor(image_resized, cv2.COLOR_GRAY2RGB)
-            elif image_resized.shape[2] == 4:  # RGBA image
-                image_resized = cv2.cvtColor(image_resized, cv2.COLOR_RGBA2RGB)
-
-            # Normalize to [0, 1] and ensure dtype is float32
-            image_resized = image_resized / 255.0
-            image_resized = image_resized.astype(np.float32)
-
-            # pass the image with shape (1, 3, 128, 128)
-            image_batch = np.expand_dims(image_resized.transpose(2, 0, 1), axis=0)  # Shape: [1, 3, 128, 128]
-
-            # Debugging: Print the shape and dtype of the input
-            print(f"Prepared input shape: {image_batch.shape}, dtype: {image_batch.dtype}")
-
-            # Predict using inferencer
-            predictions = None
-            predictions = inferencer.predict(image=image_batch)
-
+            
+            # Predict using the inferencer
+            predictions = inferencer.predict(image=image)
+            
+            # Append prediction results
             pred_scores.append(predictions.pred_score)
             pred_labels.append(predictions.pred_label)
+    else:
+        # Handle case where base_path contains subdirectories (entire dataset case)
+        for class_dir in os.listdir(base_path):
+            class_path = os.path.join(base_path, class_dir)
+            
+            # Skip non-directory files
+            if not os.path.isdir(class_path):
+                continue
+                
+            for image_file in os.listdir(class_path):
+                image_path = os.path.join(class_path, image_file)
+                
+                # Read and preprocess the image
+                image = read_image(path=image_path)
+                
+                # Predict using the inferencer
+                predictions = inferencer.predict(image=image)
+                
+                # Append prediction results
+                pred_scores.append(predictions.pred_score)
+                pred_labels.append(predictions.pred_label)
+    
     return pred_scores, pred_labels
 
-# Function to calculate and plot metrics
 def calculate_metrics(pred_scores, pred_labels_good, pred_labels_anom, target_name="all_targets"):
-    tp = sum(1 for value in pred_labels_anom if value)
-    tn = sum(1 for value in pred_labels_good if not value)
-    fp = sum(1 for value in pred_labels_anom if not value)
-    fn = sum(1 for value in pred_labels_good if value)
+    # Ensure binary labels for good (0) and anom (1)
+    true_labels = [0] * len(pred_labels_good) + [1] * len(pred_labels_anom)
+
+    # Calculate confusion matrix components (TP, TN, FP, FN)
+    tp = sum(1 for value in pred_labels_anom if value == 1)
+    tn = sum(1 for value in pred_labels_good if value == 0)
+    fp = sum(1 for value in pred_labels_anom if value == 0)
+    fn = sum(1 for value in pred_labels_good if value == 1)
 
     # Calculate metrics
     accuracy = (tp + tn) / (tp + tn + fp + fn) if (tp + tn + fp + fn) > 0 else 0
@@ -84,6 +88,19 @@ def calculate_metrics(pred_scores, pred_labels_good, pred_labels_anom, target_na
     g_mean = sqrt(recall * specificity)
     mar = 1 - recall
     far = 1 - specificity
+
+    with open("./results/results.txt", "a") as file:
+        file.write(f"Results for Target: {target_name}\n")
+        file.write(f"TP: {tp}, TN: {tn}, FP: {fp}, FN: {fn}\n")
+        file.write(f"Accuracy: {accuracy:.4f}\n")
+        file.write(f"Precision: {precision:.4f}\n")
+        file.write(f"Recall/TPR/FDR/Sensitivity: {recall:.4f}\n")
+        file.write(f"F1 Score: {f1_score:.4f}\n")
+        file.write(f"Specificity: {specificity:.4f}\n")
+        file.write(f"G-mean: {g_mean:.4f}\n")
+        file.write(f"Missed Alarm Rate: {mar:.4f}\n")
+        file.write(f"False Alarm Rate: {far:.4f}\n")
+        file.write("\n")
 
     # Print metrics
     print(f"TP: {tp}, TN: {tn}, FP: {fp}, FN: {fn}")
@@ -97,10 +114,7 @@ def calculate_metrics(pred_scores, pred_labels_good, pred_labels_anom, target_na
     print(f"False Alarm Rate: {far}")
 
     # Generate ROC and PR curves
-    pred_scores = pred_scores_good + pred_scores_anom
-    true_labels = [0] * len(pred_scores_good) + [1] * len(pred_scores_anom)
-
-    # ROC Curve
+    # Convert pred_labels_good and pred_labels_anom to binary labels (0 for good, 1 for anom)
     fpr, tpr, thresholds = roc_curve(true_labels, pred_scores)
     roc_auc = auc(fpr, tpr)
 
@@ -113,7 +127,7 @@ def calculate_metrics(pred_scores, pred_labels_good, pred_labels_anom, target_na
     plt.ylabel('True Positive Rate')
     plt.title(f'ROC curve for {target_name}')
     plt.legend(loc="lower right")
-    plt.savefig(f'roc_curve_{target_name}.png')
+    plt.savefig(f'./results/roc_curve_{target_name}.png')
 
     # PR Curve
     precision, recall, _ = precision_recall_curve(true_labels, pred_scores)
@@ -127,9 +141,10 @@ def calculate_metrics(pred_scores, pred_labels_good, pred_labels_anom, target_na
     plt.legend(loc="upper right")
     plt.xlim([0.0, 1.05])
     plt.ylim([0.0, 1.05])
-    plt.savefig(f'pr_curve_{target_name}.png')
+    plt.savefig(f'./results/pr_curve_{target_name}.png')
 
 # Process all targets first
+print(dataset_path)
 norm_path = os.path.join(dataset_path, "norm")
 pred_score_good, pred_label_good = process_images(norm_path, label_type="good")
 
@@ -141,12 +156,15 @@ pred_score_anom, pred_label_anom = process_images(anom_path, label_type="anom")
 calculate_metrics(pred_score_good + pred_score_anom, pred_label_good, pred_label_anom, target_name="all_targets")
 
 # Now process for each target filter
-target_filters = ["2S1","BMP2","BRDM2","BTR60","BTR70","D7","T62","T72","ZIL131","ZSU234"]  # Replace with your actual target filters
+target_filters = ["2S1","BMP2","BRDM2","BTR60","BTR70","D7","T62","T72","ZIL131","ZSU234"] 
 for target_filter in target_filters:
+    print(target_filter)
     norm_path_filtered = os.path.join(dataset_path, "norm", target_filter)
+    print(f"norm_path_filtered: {norm_path_filtered}")
     pred_score_good_filtered, pred_label_good_filtered = process_images(norm_path_filtered, label_type="good")
 
     anom_path_filtered = os.path.join(dataset_path, "anom", target_filter)
+    print(f"anom_path_filtered: {anom_path_filtered}")
     pred_score_anom_filtered, pred_label_anom_filtered = process_images(anom_path_filtered, label_type="anom")
 
     # Calculate and plot for each target

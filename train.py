@@ -20,21 +20,20 @@ print("Batch image shape:", images.shape)
 print(data.keys())
 
 model = Padim()
-engine = Engine(task=TaskType.CLASSIFICATION, max_epochs=100)
+engine = Engine(task=TaskType.SEGMENTATION, max_epochs=100)
 engine.fit(model=model, datamodule=datamodule)
 
 # test Model
-test_results = engine.test(
-    model=model,
-    datamodule=datamodule,
-    ckpt_path=engine.trainer.checkpoint_callback.best_model_path,
-)
+# test_results = engine.test(
+#     model=model,
+#     datamodule=datamodule,
+#     ckpt_path=engine.trainer.checkpoint_callback.best_model_path,
+# )
 
 # export model to for OpenVINO inference
 engine.export(
     model=model,
     export_type=ExportType.OPENVINO,
     datamodule=datamodule,
-    input_size=(256, 256),
     export_root="./weights/openvino",
 )

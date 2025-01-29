@@ -60,7 +60,6 @@ serial_number = {
 
 
 class MSTAR(object):
-
     def __init__(self, name='soc', is_train=False, use_phase=False, 
                  chip_size=94, patch_size=88, stride=40):
         self.name = name
@@ -124,7 +123,11 @@ class MSTAR(object):
         y = (h - size) // 2
         x = (w - size) // 2
 
-        return data[y: y + size, x: x + size]
+        cropped_data = data[y: y + size, x: x + size]
+        if cropped_data.shape[-1] > 1:
+            cropped_data = cropped_data[:, :, 0]
+
+        return cropped_data
 
     def _data_augmentation(self, data, patch_size=88, stride=40):
         # patch extraction

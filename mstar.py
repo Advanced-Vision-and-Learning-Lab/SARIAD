@@ -9,7 +9,7 @@ from scipy.ndimage import gaussian_filter
 from absl import flags
 
 project_root = os.path.dirname(os.path.abspath(__file__))
-DRIVE_FILE_ID = ""
+DRIVE_FILE_ID = "1drDQvcGIqTpdU-RN_xswfRuCyLj6XlNB"
 
 def fetch_plmstar_blob(drive_file_id):
     """
@@ -22,6 +22,7 @@ def fetch_plmstar_blob(drive_file_id):
         gdown.download(f"https://drive.google.com/uc?id={drive_file_id}", output_path, quiet=False)
         
         import zipfile
+        print("Unzipping...")
         with zipfile.ZipFile(output_path, 'r') as zip_ref:
             zip_ref.extractall(blob_path)
         os.remove(output_path)
@@ -30,7 +31,7 @@ def fetch_plmstar_blob(drive_file_id):
         print("PLMSTAR dataset found locally.")
 
 class MSTAR(Folder):
-    def __init__(self, collection='soc', is_train=True, task=TaskType.CLASSIFICATION, target_filter=None):
+    def __init__(self, collection='soc', is_train=True, task=TaskType.SEGMENTATION, target_filter=None):
         self.dataset = collection
         self.image_root = 'datasets/PLMSTAR'
         self.is_train = is_train
@@ -63,47 +64,68 @@ class MSTAR(Folder):
         )
         self.setup()
 
-    def generate_mask(self, image, n_clusters=2, sigma=1, kernel_size=50):
+    def generate_mask(self, image, n_clusters=2, sigma=4, kernel_size=50, shadow=False):
         """
         Generate a filled mask for the image using KMeans clustering,
         with Gaussian blurring and morphological operations to fill shapes.
         
         Parameters:
-            image (np.array): The input image as a NumPy array.
+            image (np.array): The input image as a NumPy array of shape (H, W, 1).
             n_clusters (int): The number of clusters for KMeans.
             sigma (float): Standard deviation for Gaussian blur. Higher values increase blurring.
+            kernel_size (int): Size of the structuring element for morphological operations.
             
         Returns:
-            np.array: The filled mask with cluster labels for each pixel.
+            np.array: The filled mask with the same shape as the input image.
         """
-        # Apply Gaussian blur to reduce noise and speckling
-        imagec = image.copy()
-        smoothed_image = gaussian_filter(imagec, sigma=sigma)
+        # Check the original shape
+        original_shape = image.shape
+
+        # Apply Gaussian smoothing
+        smoothed_image = gaussian_filter(image[:, :, 0], sigma=sigma)  # Remove the channel dimension temporarily
 
         # Flatten the smoothed image for KMeans clustering
         reshaped_image = smoothed_image.reshape(-1, 1)
 
         # Apply KMeans clustering
-        kmeans = KMeans(n_clusters=n_clusters, random_state=42)
+        kmeans = KMeans(n_clusters=n_clusters, n_init=5, max_iter=100)
         kmeans.fit(reshaped_image)
         labels = kmeans.labels_
 
-        # Reshape the result back to the original image shape
-        mask = labels.reshape(imagec.shape)
+        # labels_image = labels.reshape(image.shape[0], image.shape[1])
 
-        # Convert the mask to uint8 format for OpenCV
-        mask_uint8 = (mask * (255 // (n_clusters - 1))).astype(np.uint8)
+        # plt.figure(figsize=(10, 5))
 
-        # Apply morphological operations to fill in the shapes
-        circular_kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (kernel_size, kernel_size))
-        filled_mask = cv2.morphologyEx(mask_uint8, cv2.MORPH_CLOSE, circular_kernel)
+        # Show the clusters
+        # plt.imshow(labels_image, cmap='tab10')  # 'tab10' provides a color palette for labels
+        # plt.title("KMeans Clusters")
+        # plt.axis("off")  # Hide axes
+        # plt.show()
 
-        num_labels, labels_im = cv2.connectedComponents(filled_mask.astype(np.uint8))
+        # Identify the cluster with the lowest intensity (background)
+        cluster_means = [np.mean(reshaped_image[labels == i]) for i in range(n_clusters)]
+        background_label = np.argmin(cluster_means)  # The darkest cluster is the background
 
-        # Find the largest component by size
-        largest_label = 1  # Start from 1 to skip the background (0)
+        # Reshape labels to the original 2D spatial shape
+        labels_reshaped = labels.reshape(original_shape[:2])
+
+        # Create a binary mask where the target (non-background) is 1
+        target_mask = (labels_reshaped != background_label).astype(np.uint8)
+        if(shadow):
+            target_mask = 1 - target_mask
+
+        # Morphological operations to fill in shapes
+        if(kernel_size):
+            circular_kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (kernel_size, kernel_size))
+            target_mask = cv2.morphologyEx(target_mask, cv2.MORPH_CLOSE, circular_kernel)
+
+        # Use connected components to find and keep the largest target area
+        num_labels, labels_im = cv2.connectedComponents(target_mask)
+
+        # Find the largest connected component (excluding background, label 0)
+        largest_label = 1  # Start from 1 to skip the background
         largest_size = 0
-        
+
         for label in range(1, num_labels):
             component_size = np.sum(labels_im == label)
             if component_size > largest_size:
@@ -111,47 +133,122 @@ class MSTAR(Folder):
                 largest_label = label
 
         # Create a mask that keeps only the largest component
-        cleaned_mask = np.zeros_like(mask)
-        cleaned_mask[labels_im == largest_label] = 255  # Keep the largest component
+        largest_component_mask = (labels_im == largest_label).astype(np.uint8)
 
-        return cleaned_mask
+        # Make sure the largest component is white (255) and everything else is black (0)
+        final_mask = largest_component_mask  # 255 for the largest component, 0 for everything else
+
+        # Ensure the result is in uint8 format and restore the original shape
+        final_mask = final_mask.astype(np.uint8)
+
+        # # # Display the images at each step
+        # plt.figure(figsize=(15, 5))  # Set the figure size
+
+        # # Show the original image
+        # plt.subplot(1, 4, 1)  # (rows, columns, index)
+        # plt.imshow(image[:, :, 0], cmap='gray')
+        # plt.title("Original Image")
+        # plt.axis("off")  # Hide axes
+
+        # # Show the smoothed image
+        # plt.subplot(1, 4, 2)  # (rows, columns, index)
+        # plt.imshow(smoothed_image, cmap='gray')
+        # plt.title("Smoothed Image")
+        # plt.axis("off")
+
+        # # Show the target mask (before morphological operation)
+        # plt.subplot(1, 4, 3)  # (rows, columns, index)
+        # plt.imshow(target_mask, cmap='gray')
+        # plt.title("Target Mask")
+        # plt.axis("off")
+
+        # # Show the final mask after all operations
+        # plt.subplot(1, 4, 4)  # (rows, columns, index)
+        # plt.imshow(final_mask[:, :], cmap='gray')
+        # plt.title("Final Mask")
+        # plt.axis("off")
+
+        # # Show all images side by side
+        # plt.show()
+
+        return final_mask
+
+    # def apply_mask_to_image(self, image, mask):
+    #     """
+    #     Removes anomalies from an image by filling in the masked areas with values 
+    #     that follow the statistical distribution of surrounding pixels.
+        
+    #     Parameters:
+    #         image (np.array): The input image with anomalies.
+    #         mask (np.array): The mask indicating anomalous regions (non-zero values).
+            
+    #     Returns:
+    #         np.array: The image with anomalies filled in.
+    #     """
+
+    #     # Create the output image by setting masked areas to black (0)
+
+    #     output_image = image.copy()
+    #     output_image[mask == 1] = 0
+
+    #     # # Plot the images
+    #     # plt.figure(figsize=(15, 5))  # Set the figure size
+        
+    #     # # Show the original image
+    #     # plt.subplot(1, 2, 1)  # (rows, columns, index)
+    #     # plt.imshow(image, cmap='gray')
+    #     # plt.title("Original Image")
+    #     # plt.axis("off")  # Hide axes
+
+    #     # # Show the output image with anomalies filled
+    #     # plt.subplot(1, 2, 2)  # (rows, columns, index)
+    #     # plt.imshow(output_image, cmap='gray')
+    #     # plt.title("Masked Out Image")
+    #     # plt.axis("off")
+        
+    #     # plt.show()
+
+    #     return output_image
+
 
     def apply_mask_to_image(self, image, mask):
         """
-        Removes anomalies from an image by filling in the masked areas with values 
-        that follow the statistical distribution of surrounding pixels.
-        
+        Fills in the masked areas of the image by randomly picking pixels from the
+        background (areas not covered by the mask) and assigning those values to
+        the masked areas.
+
         Parameters:
             image (np.array): The input image with anomalies.
             mask (np.array): The mask indicating anomalous regions (non-zero values).
-            neighborhood_size (int): The size of the neighborhood to sample around anomalies.
-            
+
         Returns:
             np.array: The image with anomalies filled in.
         """
-        output_image = image.copy()
-        normal_area = np.where(mask == 0)
-        
-        # Calculate mean and std of the normal (non-anomalous) area
-        normal_values = image[normal_area]
-        mean, std = np.mean(normal_values), np.std(normal_values)
 
+        # Create the output image by copying the original
         output_image = image.copy()
 
-        # Calculate mean and std of the normal (non-anomalous) area
-        normal_values = image[mask == 0]
-        mean, std = np.mean(normal_values), np.std(normal_values)
+        # Get the indices of the background pixels (mask == 0)
+        background_indices = np.where(mask == 0)
 
-        # Apply changes only to masked (anomalous) areas
-        height, width, _ = mask.shape  # No need to unpack channels anymore
-        for y in range(height):
-            for x in range(width):
-                # Check if the current position is an anomalous area
-                if mask[y, x] != 0:  # Assuming mask is single-channel (grayscale)
-                    # Replace the pixel value with a random value from a normal distribution
-                    output_image[y, x] = np.random.normal(mean, std)
+        # Get the background pixel values (pixels where the mask is 0)
+        background_pixels = image[background_indices]
+
+        # Check if there are any background pixels
+        if len(background_pixels) == 0:
+            return image
+
+        # Iterate over the masked pixels (mask == 1)
+        masked_indices = np.where(mask == 1)
+        for idx in zip(*masked_indices):
+            # Randomly select a background pixel
+            random_pixel = background_pixels[np.random.randint(len(background_pixels))]
+
+            # Replace the masked pixel with the selected background pixel
+            output_image[idx] = random_pixel
 
         return output_image
+
             
     def data_scaling(self, chip):
         r = chip.max() - chip.min()
@@ -159,6 +256,26 @@ class MSTAR(Folder):
 
     def log_scale(self, chip):
         return np.log10(np.abs(chip) + 1)
+
+    def blur_mask(self, mask, sigma=1):
+        """
+        Apply Gaussian blur to a binary mask and threshold it back to 0 and 1.
+
+        Parameters:
+            mask (np.array): Binary mask with values 0 and 1.
+            sigma (float): Standard deviation for Gaussian kernel, controls blur intensity.
+
+        Returns:
+            np.array: Blurred binary mask with values 0 and 1.
+        """
+
+        # Apply Gaussian blur on the mask
+        blurred_mask = gaussian_filter(mask.astype(float), sigma=sigma)
+
+        # Threshold the blurred mask to get values of 0 and 1
+        blurred_mask = (blurred_mask > 0.15).astype(np.uint8)
+
+        return blurred_mask
 
     def generate_cat(self, src_path, anom_dir, norm_dir, mask_dir, json_dir, is_train, chip_size, patch_size, use_phase, dataset):
         if not os.path.exists(src_path):
@@ -200,16 +317,52 @@ class MSTAR(Folder):
             cv2.imwrite(os.path.join(category_anom_dir, f'{name}-{i}.png'), (_image * 255).astype(np.uint8))
 
             # Generate mask and save it as PNG
-            mask = self.generate_mask(_image)
-            if mask.size > 0:  # Ensure mask is not empty
-                cv2.imwrite(os.path.join(category_mask_dir, f'{name}-{i}.png'), mask)
-            else:
-                print(f"Warning: Empty mask for image {name}-{i}")
-
+            target_mask = self.generate_mask(_image)
+            target_mask = self.blur_mask(target_mask, sigma=13)
             # Apply mask to the image and save the normal image as PNG
-            normal_image = self.apply_mask_to_image(_image, mask)
-            normal_image = np.nan_to_num(normal_image, nan=0.0, posinf=0.0, neginf=0.0)  # Ensure valid values
-            cv2.imwrite(os.path.join(category_norm_dir, f'{name}-{i}.png'), (normal_image * 255).astype(np.uint8))
+            target_removed = self.apply_mask_to_image(_image, target_mask)
+            if("ZIL131" in category_anom_dir):
+                shadow_mask = self.generate_mask(target_removed, n_clusters=5, sigma=5, shadow=True, kernel_size=0)
+            else:
+                shadow_mask = self.generate_mask(target_removed, n_clusters=5, sigma=10, shadow=True, kernel_size=0)
+            shadow_mask = self.blur_mask(shadow_mask, sigma=10)
+            combined_mask = np.maximum(target_mask, shadow_mask)
+
+            cv2.imwrite(os.path.join(category_mask_dir, f'{name}-{i}.png'), combined_mask*255)
+            normal = self.apply_mask_to_image(target_removed, shadow_mask)
+            normal = np.nan_to_num(normal, nan=0.0, posinf=0.0, neginf=0.0)  # Ensure valid values
+
+            # plt.figure(figsize=(20, 5))
+
+            # # Plot the target mask
+            # plt.subplot(1, 4, 1)
+            # plt.imshow(target_mask, cmap='gray')
+            # plt.title("Target Mask")
+            # plt.axis('off')
+
+            # # Plot the target removed image
+            # plt.subplot(1, 4, 2)
+            # plt.imshow(target_removed, cmap='gray')
+            # plt.title("Target Removed")
+            # plt.axis('off')
+
+            # # Plot the shadow mask
+            # plt.subplot(1, 4, 3)
+            # plt.imshow(shadow_mask, cmap='gray')
+            # plt.title("Shadow Mask")
+            # plt.axis('off')
+
+            # # Plot the normal image
+            # plt.subplot(1, 4, 4)
+            # plt.imshow(normal, cmap='gray')
+            # plt.title("Normal Image")
+            # plt.axis('off')
+
+            # # Show the plot
+            # plt.tight_layout()
+            # plt.show()
+
+            cv2.imwrite(os.path.join(category_norm_dir, f'{name}-{i}.png'), (normal * 255).astype(np.uint8))
 
     def generate(self):
         dataset_root = os.path.join(project_root, self.image_root, self.dataset)
