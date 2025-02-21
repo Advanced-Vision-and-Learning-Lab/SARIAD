@@ -9,9 +9,10 @@ from anomalib import TaskType
 from anomalib.deploy import ExportType
 
 from mstar import MSTAR
+from hrsid import HRSID
 
 # load our MSTAR model
-datamodule = MSTAR()
+datamodule = HRSID()
 datamodule.setup()
 
 i, data = next(enumerate(datamodule.val_dataloader()))
@@ -20,7 +21,7 @@ print("Batch image shape:", images.shape)
 print(data.keys())
 
 model = Padim()
-engine = Engine(task=TaskType.SEGMENTATION, max_epochs=100)
+engine = Engine(task=TaskType.SEGMENTATION)
 engine.fit(model=model, datamodule=datamodule)
 
 # test Model
