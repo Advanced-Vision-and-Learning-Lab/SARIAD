@@ -1,0 +1,31 @@
+# Default configuration for SARIAD
+
+model:
+  name: autoencoder  # Options: autoencoder, transformer, or any Anomalib model
+  input_size: [256, 256]  # Input size for models
+  pretrained_weights: null  # Optional path to pretrained weights
+
+data:
+  path: datasets/MSTAR  # Path to the SAR dataset
+  batch_size: 32  # Batch size for training and validation
+  num_workers: 4  # Number of workers for data loading
+  augmentations:
+    normalize: True  # Apply normalization
+    random_flip: True  # Random horizontal and vertical flips
+    random_crop: False  # Random cropping
+
+training:
+  epochs: 50  # Number of training epochs
+  learning_rate: 0.001  # Learning rate for the optimizer
+  optimizer: adam  # Options: adam, sgd
+  checkpoint_dir: checkpoints/  # Directory to save model checkpoints
+
+benchmark:
+  enabled: True  # Enable benchmarking
+  num_runs: 5  # Number of benchmarking runs
+
+logging:
+  log_dir: logs/  # Directory for logs
+  log_interval: 10  # Log every N batches
+
+seed: 42  # Random seed for reproducibility

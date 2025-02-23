@@ -1,2 +1,102 @@
-# anomalib-sar
-A Anomalib wrapper for SAR data.
+# Benchmarking suite for synthetic aperture radar imagery anomaly detection (SARIAD) algorithms
+
+## Overview
+This package is designed for anomaly detection in Synthetic Aperture Radar (SAR) images, leveraging PyTorch Lightning and models from [Anomalib](https://anomalib.readthedocs.io/). The package is modular, allowing easy benchmarking and dataset integration.
+
+## Directory Structure
+```
+SARIAD/
+├── README.md
+├── config/
+│   ├── default.yaml
+│   ├── environment.yaml  # Conda environment file
+├── datasets/
+│   ├── MSTAR/
+│   ├── custom_dataset/
+│   └── sar_datamodule.py  
+├── models/
+│   ├── __init__.py
+│   ├── anomalib_models.py
+│   ├── autoencoder.py
+│   └── transformer.py
+├── preprocessing/
+│   ├── __init__.py
+│   ├── normalize.py
+│   ├── augmentations.py
+│   └── utils.py
+├── benchmarks/
+│   ├── __init__.py
+│   └── benchmarking.py
+├── main.py
+└── utils/
+    ├── __init__.py
+    └── config_loader.py
+```
+
+## Installation
+```bash
+# Clone the repository
+git clone https://github.com/username/SARIAD.git
+cd SARIAD
+
+# Install dependencies using Conda
+conda env create --file=config/environment.yaml
+
+# Activate the environment
+conda activate SARIAD
+```
+
+## Configuration
+Edit the YAML file located in `config/default.yaml` to specify the dataset path, model, and training parameters.
+
+## Usage
+```bash
+# Train with a specific configuration
+python main.py --config config/default.yaml
+```
+
+## Benchmarking
+To enable benchmarking, set `benchmark.enabled: True` in the YAML file and specify the number of runs.
+
+## Preprocessing
+- **normalize.py**: Functions for data normalization.
+- **augmentations.py**: Functions for data augmentations.
+- **utils.py**: Utility functions for SAR-specific preprocessing.
+
+The `SARDataModule` located in the `datasets` folder imports these functions to ensure consistent preprocessing across datasets.
+
+## License
+MIT License
+
+## Acknowledgments
+This project is inspired by [Anomalib](https://anomalib.readthedocs.io/) and [Benchmarks for Medical Anomaly Detection (BMAD)](https://github.com/dorisbao/bmad).
+
+## Contributing
+Contributions are welcome! To contribute:
+1. Fork the repository on GitHub.
+2. Create a new branch with a descriptive name.
+3. Make your changes and ensure they follow the code style guidelines.
+4. Write unit tests for any new features or bug fixes.
+5. Submit a pull request with a clear description of your changes.
+
+For major changes, please open an issue first to discuss what you'd like to change. We appreciate your contributions to improve this work!
+
+## Citing SARIAD
+
+If you use the SARIAD code, please cite the following reference using the following entry.
+
+**Plain Text:**
+
+L. Chauvin, S. Gupta, A. Ibarra and J. Peeples, "Benchmarking suite for synthetic aperture radar imagery anomaly detection (SARIAD) algorithms," in Algorithms for Synthetic Aperture Radar Imagery XXXII, vol. TBD. International Society for Optics and Photonics (SPIE), 2025, DOI:TBD
+**BibTex:**
+
+```
+@inproceedings{Lucian2025histogram,
+  title={Benchmarking suite for synthetic aperture radar imagery anomaly detection (SARIAD) algorithms},
+  author={Chauvin, Lucian and Gupta, Somil, and Ibarra, Angelina, and Peeples, Joshua},
+  booktitle={Algorithms for Synthetic Aperture Radar Imagery XXXII},
+  pages={TBD},
+  year={2025},
+  organization={International Society for Optics and Photonics (SPIE)}
+}
+```
