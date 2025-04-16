@@ -8,10 +8,10 @@ from anomalib.models import Padim
 from anomalib import TaskType
 from anomalib.deploy import ExportType
 
-from mstar import MSTAR
-from hrsid import HRSID
+# from mstar import MSTAR
+from data.datamodules.image.hrsid import HRSID
 
-# load our MSTAR model
+# load our HRSID model
 datamodule = HRSID()
 datamodule.setup()
 
@@ -25,11 +25,11 @@ engine = Engine(task=TaskType.SEGMENTATION)
 engine.fit(model=model, datamodule=datamodule)
 
 # test Model
-# test_results = engine.test(
-#     model=model,
-#     datamodule=datamodule,
-#     ckpt_path=engine.trainer.checkpoint_callback.best_model_path,
-# )
+test_results = engine.test(
+    model=model,
+    datamodule=datamodule,
+    ckpt_path=engine.trainer.checkpoint_callback.best_model_path,
+)
 
 # export model to for OpenVINO inference
 engine.export(
