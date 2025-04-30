@@ -57,7 +57,3 @@ class HRSID(Folder):
             task=task,
         )
         self.setup()
-
-# SHOULD BE RUN FOR TESTING ONLY
-if __name__ == "__main__":
-    HRSID(is_train=False)

@@ -8,11 +8,16 @@ from anomalib.models import Padim
 from anomalib import TaskType
 from anomalib.deploy import ExportType
 
-# from mstar import MSTAR
-from data.datamodules.image.hrsid import HRSID
+# import our SAR datasets, MSTAR and HRSID
+from data.datamodules.image.mstar.mstar import MSTAR
+from data.datamodules.image.hrsid.hrsid import HRSID
+
+# load our MSTAR model
+datamodule = MSTAR()
 
 # load our HRSID model
-datamodule = HRSID()
+# datamodule = HRSID()
+
 datamodule.setup()
 
 i, data = next(enumerate(datamodule.val_dataloader()))
