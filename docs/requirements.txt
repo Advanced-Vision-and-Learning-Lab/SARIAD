@@ -5,3 +5,4 @@ nbsphinx
 sphinx-autodoc-typehints
 sphinx-copybutton
 sphinx-book-theme
+linkify-it-py
