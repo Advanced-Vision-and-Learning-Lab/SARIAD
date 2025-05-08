@@ -1,8 +1,7 @@
 Welcome to SARIAD's documentation!
 ==================================
 
-.. include:: ../README.rst
-   :format: markdown
+.. include:: ../README.md
 
 .. toctree::
    :maxdepth: 2
