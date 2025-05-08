@@ -1,2 +1,6 @@
 sphinx
 sphinx_design
+myst_parser
+nbsphinx
+sphinx-autodoc-typehints
+sphinx-copybutton
