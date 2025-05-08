@@ -4,3 +4,4 @@ myst_parser
 nbsphinx
 sphinx-autodoc-typehints
 sphinx-copybutton
+sphinx-book-theme
