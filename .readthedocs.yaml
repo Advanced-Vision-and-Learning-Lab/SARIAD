@@ -2,6 +2,7 @@ version: 2
 
 build:
   image: latest
+  os: ubuntu-24.04
   tools:
     mkdocs: latest
 
