@@ -7,7 +7,7 @@ build:
     python: "3.11"
 
 mkdocs:
-  config: docs/mkdocs.yml
+  configuration: docs/mkdocs.yml
 
 python:
   version: 3.11
