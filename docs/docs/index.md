@@ -88,6 +88,9 @@ If you use the SARIAD code, please cite the following reference using the follow
 **Plain Text:**
 
 L. Chauvin, S. Gupta, A. Ibarra and J. Peeples, "Benchmarking suite for synthetic aperture radar imagery anomaly detection (SARIAD) algorithms," in Algorithms for Synthetic Aperture Radar Imagery XXXII, vol. TBD. International Society for Optics and Photonics (SPIE), 2025, DOI:TBD
+
+[![arXiv](http://img.shields.io/badge/cs.CV-arXiv%3A2504.08115-B31B1B.svg)](https://doi.org/10.48550/arXiv.2504.08115)
+
 **BibTex:**
 
 ```
