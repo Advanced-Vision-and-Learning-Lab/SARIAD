@@ -1,13 +1,16 @@
 version: 2
 
 build:
-  os: ubuntu-24.04
+  image: latest
   tools:
-    python: "3.10"
+    mkdocs: latest
 
-sphinx:
-  configuration: docs/conf.py
+mkdocs:
+  config: docs/mkdocs.yml
 
 python:
-  install:
-    - requirements: docs/requirements.txt
+  version: 3.11
+
+dependencies:
+  - pip:
+      - mkdocs
