@@ -37,7 +37,7 @@ def process_images(base_path, label_type):
 
             predictions = inferencer.predict(image=image)
             seg_image = im.fromarray(predictions.segmentations)
-            seg_image.save(f"{output_directory}/{label_type}-seg-{class_dir}-{image_file}.png")
+            seg_image.save(f"{output_directory}/{label_type}-seg-{class_dir}-{image_file}")
 
             pred_scores.append(predictions.pred_score)
             pred_labels.append(predictions.pred_label)
