@@ -6,11 +6,11 @@ This package is designed for anomaly detection in Synthetic Aperture Radar (SAR)
 ## Directory Structure
 ```
 SARIAD/
-├── README.md
 ├── config/
 │   ├── default.yaml
 │   ├── environment.yaml  # Conda environment file
 ├── datasets/
+│   ├── __init__.py
 │   ├── MSTAR/
 │   ├── custom_dataset/
 │   └── sar_datamodule.py  
@@ -28,22 +28,34 @@ SARIAD/
 │   ├── __init__.py
 │   └── benchmarking.py
 ├── main.py
+├── __init__.py
 └── utils/
     ├── __init__.py
     └── config_loader.py
 ```
 
 ## Installation
+For now we require a `python~=3.11` enviorment. This can be obtained with [pyenv](https://github.com/pyenv/pyenv)
+or on windows with [pyenv-win](https://github.com/pyenv-win/pyenv-win).
+
 ```bash
 # Clone the repository
 git clone https://github.com/username/SARIAD.git
-cd SARIAD
 
-# Install dependencies using Conda
-conda env create --file=config/environment.yaml
+# Using pyenv to set up python~=3.11 virtual environment
+pyenv install 3.11.12
+pyenv local 3.11.12
+python -m venv venv
 
-# Activate the environment
-conda activate SARIAD
+# Linux/MacOS
+source venv/bin/activate
+
+# Windows
+.\venv\Scripts\Activate.ps1 # Powershell
+.\venv\Scripts\activate.bat # Command Prompt
+
+# Install SARIAD in editable mode
+pip install -e .
 ```
 
 ## Configuration
