@@ -1,7 +1,7 @@
 import argparse
 import yaml
 import pytorch_lightning as pl
-from datasets.sar_datamodule import SARDataModule
+from .datasets import *
 from models import autoencoder, transformer, anomalib_model
 from benchmarks.benchmarking import benchmark
 

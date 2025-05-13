@@ -127,8 +127,5 @@ dependencies = [
 [project.urls]
 Homepage = "https://github.com/Advanced-Vision-and-Learning-Lab/SARIAD"
 
-[tool.setuptools]
-package-dir = { "" = "SARIAD" }
-
 [tool.setuptools.packages.find]
-where = ["SARIAD"]
+where = ["."]

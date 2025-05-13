@@ -9,8 +9,8 @@ from anomalib import TaskType
 from anomalib.deploy import ExportType
 
 # import our SAR datasets, MSTAR and HRSID
-from data.datamodules.image.mstar.mstar import MSTAR
-from data.datamodules.image.hrsid.hrsid import HRSID
+from SARIAD.data import MSTAR
+from SARIAD.data import HRSID
 
 # load our MSTAR model
 datamodule = MSTAR()
