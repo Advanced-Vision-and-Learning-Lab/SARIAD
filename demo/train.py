@@ -8,7 +8,7 @@ from anomalib.models import Padim
 from anomalib import TaskType
 from anomalib.deploy import ExportType
 
-# import our SAR datasets, MSTAR and HRSID
+# import our SAR datasets
 from SARIAD.datasets import MSTAR
 from SARIAD.datasets import HRSID
 
