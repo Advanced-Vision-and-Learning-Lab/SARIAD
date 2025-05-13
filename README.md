@@ -94,7 +94,7 @@ L. Chauvin, S. Gupta, A. Ibarra and J. Peeples, "Benchmarking suite for syntheti
 **BibTex:**
 
 ```
-@inproceedings{Lucian2025histogram,
+@inproceedings{Chauvin2025Benchmarking,
   title={Benchmarking suite for synthetic aperture radar imagery anomaly detection (SARIAD) algorithms},
   author={Chauvin, Lucian and Gupta, Somil, and Ibarra, Angelina, and Peeples, Joshua},
   booktitle={Algorithms for Synthetic Aperture Radar Imagery XXXII},
