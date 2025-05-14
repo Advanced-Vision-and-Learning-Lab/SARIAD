@@ -115,3 +115,15 @@ L. Chauvin, S. Gupta, A. Ibarra and J. Peeples, "Benchmarking suite for syntheti
   organization={International Society for Optics and Photonics (SPIE)}
 }
 ```
+
+## Citing MSTAR
+If you use this dataset in your research, please cite the following paper:
+```
+@misc{mstar2025,
+  title = {MSTAR Public Dataset},
+  author = {{U.S. Air Force}},
+  year = {1995},
+  note = {Sensor Data Management System (SDMS)},
+  url = {https://www.sdms.afrl.af.mil/index.php?collection=mstar}
+}
+```
