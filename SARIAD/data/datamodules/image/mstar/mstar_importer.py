@@ -58,10 +58,10 @@ serial_number = {
 
 
 class MSTAR(object):
-    def __init__(self, name='soc', is_train=False, use_phase=False, 
+    def __init__(self, name='soc', split="train", use_phase=False, 
                  chip_size=94, patch_size=88, stride=40):
         self.name = name
-        self.is_train = is_train
+        self.split = split
         self.use_phase = use_phase
         self.chip_size = chip_size
         self.patch_size = patch_size

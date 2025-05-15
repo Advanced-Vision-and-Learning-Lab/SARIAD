@@ -5,49 +5,27 @@ from anomalib import TaskType
 from sklearn.cluster import KMeans
 from scipy.ndimage import gaussian_filter
 from . import mstar_importer
+from SARIAD.data import fetch_blob
+from SARIAD import PROJECT_ROOT, DATASETS_PATH
 
-project_root = os.getcwd()
+dataset_name = "PLMSTAR"
 DRIVE_FILE_ID = "1TT3SrDMW8ICcknoAXXZLLCLk0X6L1nAL"
 
-def fetch_blob(drive_file_id):
-    """
-    Fetches the PLMSTAR blob from Google Drive if it does not already exist locally.
-    """
-    datasets_dir = os.path.join(project_root, "datasets")
-    blob_path = os.path.join(datasets_dir, "PLMSTAR")
-
-    if not os.path.exists(blob_path):
-        print("PLMSTAR dataset not found locally. Downloading...")
-        os.makedirs(datasets_dir, exist_ok=True)
-        output_path = f"{blob_path}.zip"
-
-        gdown.download(f"https://drive.google.com/uc?id={drive_file_id}", output_path, quiet=False)
-        
-        import zipfile
-        print("Unzipping...")
-        with zipfile.ZipFile(output_path, 'r') as zip_ref:
-            zip_ref.extractall(datasets_dir)
-        os.remove(output_path)
-        print(f"Downloaded and extracted PLMSTAR dataset to {blob_path}.")
-    else:
-        print("PLMSTAR dataset found locally.")
-
 class MSTAR(Folder):
-    def __init__(self, collection='soc', is_train=True, task=TaskType.SEGMENTATION, target_filter=None):
+    def __init__(self, collection='soc', split="train", task=TaskType.SEGMENTATION, target_filter=None):
         self.dataset = collection
         self.image_root = 'datasets/PLMSTAR'
-        self.is_train = is_train
-        self.s = 'train' if self.is_train else 'test'
+        self.split = split
         self.chip_size = 100
         self.patch_size = 100
         self.use_phase = False
         self.train_batch_size = 32
         self.eval_batch_size = 32
         self.target_filter = target_filter
-        self.output_root = os.path.join(self.image_root, self.dataset, self.s)
+        self.output_root = os.path.join(self.image_root, self.dataset, self.split)
         self.image_size=(128,128)
 
-        fetch_blob(f"{DRIVE_FILE_ID}")
+        fetch_blob(DRIVE_FILE_ID, dataset_name)
 
         # Check if the main directory exists; if not, generate the dataset
         if not os.path.exists(self.output_root):
@@ -55,10 +33,10 @@ class MSTAR(Folder):
 
         super().__init__(
             name="MSTAR",
-            root=f"./datasets/PLMSTAR/{self.dataset}/",
-            mask_dir=f"{self.s}/masks",
-            normal_dir=f"{self.s}/norm",
-            abnormal_dir=f"{self.s}/anom",
+            root=f"{DATASETS_PATH}/PLMSTAR/{self.dataset}/",
+            mask_dir=f"{self.split}/masks",
+            normal_dir=f"{self.split}/norm",
+            abnormal_dir=f"{self.split}/anom",
             image_size=self.image_size,
             train_batch_size=self.train_batch_size,
             eval_batch_size=self.eval_batch_size,
@@ -201,7 +179,7 @@ class MSTAR(Folder):
 
         return blurred_mask
 
-    def generate_cat(self, src_path, anom_dir, norm_dir, mask_dir, json_dir, is_train, chip_size, patch_size, use_phase, dataset):
+    def generate_cat(self, src_path, anom_dir, norm_dir, mask_dir, json_dir, split, chip_size, patch_size, use_phase, dataset):
         if not os.path.exists(src_path):
             print(f'{src_path} does not exist')
             return
@@ -219,7 +197,7 @@ class MSTAR(Folder):
 
         print(f"Processing category: {category_name}")
         _mstar = mstar_importer.MSTAR(
-            name=dataset, is_train=is_train, chip_size=chip_size, patch_size=patch_size, use_phase=use_phase, stride=1
+            name=dataset, split=split, chip_size=chip_size, patch_size=patch_size, use_phase=use_phase, stride=1
         )
 
         # List of source images
@@ -259,10 +237,9 @@ class MSTAR(Folder):
             cv2.imwrite(os.path.join(category_norm_dir, f'{name}-{i}.png'), (normal * 255).astype(np.uint8))
 
     def generate(self):
-        dataset_root = os.path.join(project_root, self.image_root, self.dataset)
+        dataset_root = os.path.join(PROJECT_ROOT, self.image_root, self.dataset)
         raw_root = os.path.join(dataset_root, 'raw')
-        mode = 'train' if self.is_train else 'test'
-        output_root = os.path.join(dataset_root, mode)
+        output_root = os.path.join(dataset_root, self.split)
 
         # Create overall directories for `anom`, `norm`, `masks`, and `json`
         anom_dir = os.path.join(output_root, 'anom')
@@ -281,12 +258,12 @@ class MSTAR(Folder):
         # Process each target category
         for target in mstar_importer.target_name[self.dataset]:
             self.generate_cat(
-                src_path=os.path.join(raw_root, mode, target),
+                src_path=os.path.join(raw_root, self.split, target),
                 anom_dir=anom_dir,
                 norm_dir=norm_dir,
                 mask_dir=mask_dir,
                 json_dir=json_dir,
-                is_train=self.is_train,
+                split=self.split,
                 chip_size=self.chip_size,
                 patch_size=self.patch_size,
                 use_phase=self.use_phase,
