@@ -1,18 +1,15 @@
 import json, glob, os, cv2, gdown
 import numpy as np
-import matplotlib.pyplot as plt
 from anomalib.data import Folder
 from anomalib import TaskType
-from PIL import Image
 from sklearn.cluster import KMeans
 from scipy.ndimage import gaussian_filter
-from absl import flags
 from . import mstar_importer
 
 project_root = os.getcwd()
 DRIVE_FILE_ID = "1TT3SrDMW8ICcknoAXXZLLCLk0X6L1nAL"
 
-def fetch_plmstar_blob(drive_file_id):
+def fetch_blob(drive_file_id):
     """
     Fetches the PLMSTAR blob from Google Drive if it does not already exist locally.
     """
@@ -50,7 +47,7 @@ class MSTAR(Folder):
         self.output_root = os.path.join(self.image_root, self.dataset, self.s)
         self.image_size=(128,128)
 
-        fetch_plmstar_blob(f"{DRIVE_FILE_ID}")
+        fetch_blob(f"{DRIVE_FILE_ID}")
 
         # Check if the main directory exists; if not, generate the dataset
         if not os.path.exists(self.output_root):

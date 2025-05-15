@@ -1,17 +1,11 @@
-import json, glob, os, cv2, gdown
-import numpy as np
-import matplotlib.pyplot as plt
+import os, gdown
 from anomalib.data import Folder
 from anomalib import TaskType
-from PIL import Image
-from sklearn.cluster import KMeans
-from scipy.ndimage import gaussian_filter
-from absl import flags
 
 project_root = os.getcwd()
 DRIVE_FILE_ID = "1idg_k6ccHMBsgvj86zCKUePIjGLUuHBs"
 
-def fetch_plmstar_blob(drive_file_id):
+def fetch_blob(drive_file_id):
     """
     Fetches the HRSID blob from Google Drive if it does not already exist locally.
     """
@@ -43,7 +37,7 @@ class HRSID(Folder):
         self.eval_batch_size = 16
         self.image_size=(800,800)
 
-        fetch_plmstar_blob(f"{DRIVE_FILE_ID}")
+        fetch_blob(f"{DRIVE_FILE_ID}")
 
         super().__init__(
             name="HRSID",
