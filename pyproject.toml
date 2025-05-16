@@ -121,7 +121,8 @@ dependencies = [
 	"urllib3==2.3.0",
 	"wcwidth==0.2.13",
 	"yarl==1.18.3",
-	"rarfile==4.2"
+	"rarfile==4.2",
+	"kagglehub==0.3.12"
 ]
 
 [project.urls]

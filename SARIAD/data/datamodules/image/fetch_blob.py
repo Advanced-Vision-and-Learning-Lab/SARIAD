@@ -1,14 +1,15 @@
-import os, requests, zipfile, tarfile, rarfile, gdown
+import os, shutil, requests, zipfile, tarfile, rarfile, gdown, kagglehub
 from SARIAD import DATASETS_PATH
 
-def fetch_blob(dataset_name, link="", drive_file_id="", ext="zip", datasets_dir=DATASETS_PATH):
+def fetch_blob(dataset_name, link="", drive_file_id="", kaggle="", ext="zip", datasets_dir=DATASETS_PATH):
     """
-    Fetches the dataset_name blob from a GitHub repo, direct link, or Google Drive.
+    Fetches the dataset_name blob from a GitHub repo, direct link, Google Drive, or Kaggle.
     
     Parameters:
     - dataset_name: str, name of the dataset directory
     - link: str, optional, direct HTTP(s) link
     - drive_file_id: str, optional, ID for Google Drive file
+    - kaggle: str, optional, KaggleHub dataset slug
     - ext: str, archive type (zip, tar.gz, rar)
     - datasets_dir: str, path to local datasets directory
     """
@@ -22,7 +23,6 @@ def fetch_blob(dataset_name, link="", drive_file_id="", ext="zip", datasets_dir=
     os.makedirs(datasets_dir, exist_ok=True)
 
     if link:
-        # Direct download
         archive_path = f"{blob_path}.{ext}"
         response = requests.get(link, stream=True)
         if response.status_code != 200:
@@ -37,13 +37,17 @@ def fetch_blob(dataset_name, link="", drive_file_id="", ext="zip", datasets_dir=
         print(f"Downloaded and extracted {dataset_name} to {blob_path}.")
 
     elif drive_file_id:
-        # Google Drive download
         archive_path = f"{blob_path}.{ext}"
         gdown.download(f"https://drive.google.com/uc?id={drive_file_id}", archive_path, quiet=False)
         print(f"Extracting the {ext} archive...")
         _extract_archive(archive_path, datasets_dir, ext)
         os.remove(archive_path)
         print(f"Downloaded and extracted {dataset_name} to {blob_path}.")
+
+    elif kaggle:
+        path = kagglehub.dataset_download(kaggle)
+        shutil.copytree(path, blob_path)
+        print(f"KaggleHub {kaggle} dataset copied to: {blob_path}")
 
     else:
         raise ValueError("Must provide either a `link` or `drive_file_id`.")
