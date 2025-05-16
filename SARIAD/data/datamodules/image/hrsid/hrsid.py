@@ -14,7 +14,7 @@ class HRSID(Folder):
         self.eval_batch_size = 16
         self.image_size=(800,800)
 
-        fetch_blob(DRIVE_FILE_ID, dataset_name)
+        fetch_blob(dataset_name, drive_file_id=DRIVE_FILE_ID)
 
         super().__init__(
             name="HRSID",

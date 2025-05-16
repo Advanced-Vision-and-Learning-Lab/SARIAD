@@ -15,7 +15,7 @@ class SSDD(Folder):
         self.eval_batch_size = 16
         self.image_size=(512,512)
 
-        fetch_blob(DRIVE_FILE_ID, dataset_name)
+        fetch_blob(dataset_name, drive_file_id=DRIVE_FILE_ID, ext="rar")
 
         super().__init__(
             name=dataset_name,

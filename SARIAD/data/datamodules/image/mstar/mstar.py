@@ -25,7 +25,7 @@ class MSTAR(Folder):
         self.output_root = os.path.join(self.image_root, self.dataset, self.split)
         self.image_size=(128,128)
 
-        fetch_blob(DRIVE_FILE_ID, dataset_name)
+        fetch_blob(dataset_name, drive_file_id=DRIVE_FILE_ID)
 
         # Check if the main directory exists; if not, generate the dataset
         if not os.path.exists(self.output_root):
