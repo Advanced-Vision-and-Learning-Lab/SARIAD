@@ -11,7 +11,7 @@ class SAMPLE_PUBLIC(Folder):
         self.split = split
         self.train_batch_size = 32
         self.eval_batch_size = 16
-        self.image_size=(512,512)
+        self.image_size=(0,0)
 
         fetch_blob(NAME, link=LINK)
 
