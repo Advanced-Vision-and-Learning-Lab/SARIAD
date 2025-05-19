@@ -3,7 +3,7 @@ from SARIAD import DATASETS_PATH
 
 def fetch_blob(dataset_name, link="", drive_file_id="", kaggle="", ext="zip", datasets_dir=DATASETS_PATH):
     """
-    Fetches the dataset_name blob from a GitHub repo, direct link, Google Drive, or Kaggle.
+    Fetches the dataset_name blob from a direct link, Google Drive, or Kaggle.
     
     Parameters:
     - dataset_name: str, name of the dataset directory
