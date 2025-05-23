@@ -1,7 +1,7 @@
 from anomalib.data import Folder
 from anomalib import TaskType
-from SARIAD.data import fetch_blob
-from SARIAD import DATASETS_PATH
+from SARIAD.utils.blob_utils import fetch_blob
+from SARIAD.config import DATASETS_PATH
 
 dataset_name = "HRSID"
 DRIVE_FILE_ID = "1idg_k6ccHMBsgvj86zCKUePIjGLUuHBs"

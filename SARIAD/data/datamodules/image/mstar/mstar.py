@@ -1,12 +1,13 @@
-import json, glob, os, cv2, gdown
-import numpy as np
 from anomalib.data import Folder
 from anomalib import TaskType
+from SARIAD.utils.blob_utils import fetch_blob
+from SARIAD.config import PROJECT_ROOT, DATASETS_PATH
+
+import json, glob, os, cv2
+import numpy as np
 from sklearn.cluster import KMeans
 from scipy.ndimage import gaussian_filter
 from . import mstar_importer
-from SARIAD.data import fetch_blob
-from SARIAD import PROJECT_ROOT, DATASETS_PATH
 
 dataset_name = "PLMSTAR"
 DRIVE_FILE_ID = "1TT3SrDMW8ICcknoAXXZLLCLk0X6L1nAL"

@@ -1,7 +1,7 @@
 from anomalib.data import Folder
 from anomalib import TaskType
-from SARIAD.data import fetch_blob
-from SARIAD import DATASETS_PATH
+from SARIAD.utils.blob_utils import fetch_blob
+from SARIAD.config import DATASETS_PATH
 
 NAME = "SARDet_100K"
 KAGGLE = "greatbird/sardet-100k"
