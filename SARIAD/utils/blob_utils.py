@@ -1,5 +1,7 @@
+from SARIAD.config import DATASETS_PATH
+
 import os, shutil, requests, zipfile, tarfile, rarfile, gdown, kagglehub
-from SARIAD import DATASETS_PATH
+from tqdm import tqdm
 
 def fetch_blob(dataset_name, link="", drive_file_id="", kaggle="", ext="zip", datasets_dir=DATASETS_PATH):
     """
@@ -53,14 +55,36 @@ def fetch_blob(dataset_name, link="", drive_file_id="", kaggle="", ext="zip", da
         raise ValueError("Must provide either a `link` or `drive_file_id`.")
 
 def _extract_archive(archive_path, extract_to, ext):
+    """
+    Extracts an archive file to a specified directory, showing progress with tqdm.
+
+    Parameters:
+        archive_path (str): The path to the archive file.
+        extract_to (str): The directory where the archive contents will be extracted.
+        ext (str): The extension of the archive file (e.g., "zip", "rar", "tar.gz").
+
+    Raises:
+        ValueError: If the archive extension is not supported.
+    """
+    os.makedirs(extract_to, exist_ok=True)
+
     if ext == "zip":
         with zipfile.ZipFile(archive_path, 'r') as zip_ref:
-            zip_ref.extractall(extract_to)
+            # Get list of members for tqdm total
+            members = zip_ref.namelist()
+            for member in tqdm(members, desc=f"Extracting {os.path.basename(archive_path)}"):
+                zip_ref.extract(member, extract_to)
     elif ext == "rar":
         with rarfile.RarFile(archive_path) as rar_ref:
-            rar_ref.extractall(extract_to)
+            # rarfile.infolist() gives info for tqdm total
+            members = rar_ref.infolist()
+            for member in tqdm(members, desc=f"Extracting {os.path.basename(archive_path)}"):
+                rar_ref.extract(member, extract_to)
     elif ext == "tar.gz":
         with tarfile.open(archive_path, 'r:gz') as tar_ref:
-            tar_ref.extractall(extract_to)
+            # tarfile.getmembers() gives info for tqdm total
+            members = tar_ref.getmembers()
+            for member in tqdm(members, desc=f"Extracting {os.path.basename(archive_path)}"):
+                tar_ref.extract(member, extract_to)
     else:
         raise ValueError(f"Unsupported archive extension: {ext}")
