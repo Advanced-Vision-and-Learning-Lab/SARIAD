@@ -1,6 +1,6 @@
 venv/
 tags
 anomalib/
-datasets/
+demo/datasets/
 *.pyc
 __pycache__/
