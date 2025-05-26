@@ -13,10 +13,10 @@ DRIVE_FILE_ID = "1glNJUGotrbEyk43twwB9556AdngJsynZ"
 
 class SSDD(Folder):
     def __init__(self, sub_dataset="PSeg_SSDD", sub_category="", split="train", task=TaskType.SEGMENTATION):
-        self.split=split
-        self.train_batch_size=32
-        self.eval_batch_size=16
-        self.image_size=(512,512)
+        self.split = split
+        self.train_batch_size = 32
+        self.eval_batch_size = 16
+        self.image_size = (512,512)
 
         fetch_blob(NAME, drive_file_id=DRIVE_FILE_ID, ext="rar")
         self.split_masks()
