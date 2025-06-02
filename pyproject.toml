@@ -23,7 +23,7 @@ dependencies = [
 	"aiohappyeyeballs==2.4.4",
 	"aiohttp==3.11.11",
 	"aiosignal==1.3.2",
-	"anomalib==1.2.0",
+	"anomalib==2.0.0",
 	"antlr4-python3-runtime==4.9.3",
 	"attrs==24.3.0",
 	"beautifulsoup4==4.12.3",

@@ -1,5 +1,4 @@
 from anomalib.data import Folder
-from anomalib import TaskType
 from SARIAD.utils.blob_utils import fetch_blob
 from SARIAD.config import PROJECT_ROOT, DATASETS_PATH
 
@@ -13,7 +12,7 @@ dataset_name = "PLMSTAR"
 DRIVE_FILE_ID = "1TT3SrDMW8ICcknoAXXZLLCLk0X6L1nAL"
 
 class MSTAR(Folder):
-    def __init__(self, collection='soc', split="train", task=TaskType.SEGMENTATION, target_filter=None):
+    def __init__(self, collection='soc', split="train", target_filter=None):
         self.dataset = collection
         self.image_root = 'datasets/PLMSTAR'
         self.split = split
@@ -24,7 +23,7 @@ class MSTAR(Folder):
         self.eval_batch_size = 32
         self.target_filter = target_filter
         self.output_root = os.path.join(self.image_root, self.dataset, self.split)
-        self.image_size=(128,128)
+        self.image_size = (128,128)
 
         fetch_blob(dataset_name, drive_file_id=DRIVE_FILE_ID)
 
@@ -33,15 +32,13 @@ class MSTAR(Folder):
             self.generate()
 
         super().__init__(
-            name="MSTAR",
-            root=f"{DATASETS_PATH}/PLMSTAR/{self.dataset}/",
-            mask_dir=f"{self.split}/masks",
-            normal_dir=f"{self.split}/norm",
-            abnormal_dir=f"{self.split}/anom",
-            image_size=self.image_size,
-            train_batch_size=self.train_batch_size,
-            eval_batch_size=self.eval_batch_size,
-            task=task,
+            name = "MSTAR",
+            root = f"{DATASETS_PATH}/PLMSTAR/{self.dataset}/",
+            mask_dir = f"{self.split}/masks",
+            normal_dir = f"{self.split}/norm",
+            abnormal_dir = f"{self.split}/anom",
+            train_batch_size = self.train_batch_size,
+            eval_batch_size = self.eval_batch_size,
         )
         self.setup()
 
