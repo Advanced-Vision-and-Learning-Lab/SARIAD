@@ -11,6 +11,10 @@ from anomalib.deploy import ExportType
 # import our SAR datasets
 from SARIAD.datasets import MSTAR
 from SARIAD.datasets import HRSID
+from SARIAD.datasets import SSDD
+
+# import the SAR CNN preprocessor
+from SARIAD.pre_processing import SARCNN_Denoising
 
 # load our MSTAR model
 datamodule = MSTAR()
@@ -20,13 +24,16 @@ datamodule = MSTAR()
 
 datamodule.setup()
 
-i, data = next(enumerate(datamodule.val_dataloader()))
-images = data['image']
-print("Batch image shape:", images.shape)
-print(data.keys())
+i, train_data = next(enumerate(datamodule.train_dataloader()))
+print("Batch Image Shape", train_data.image.shape)
 
+# load PaDiM
 model = Padim()
-engine = Engine(task=TaskType.SEGMENTATION)
+
+# load PaDiM with the SARCNN_Denoising pre_processor
+# model = Padim(pre_processor=SARCNN_Denoising())
+
+engine = Engine()
 engine.fit(model=model, datamodule=datamodule)
 
 # test Model
