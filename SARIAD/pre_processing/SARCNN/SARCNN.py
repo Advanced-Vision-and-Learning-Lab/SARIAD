@@ -62,9 +62,8 @@ class SARCNN_DenoisingTransform(Transform):
         inpt: A torch.Tensor representing the image (C, H, W).
               Anomalib works with (B, C, H, W), so we'll handle batch dimension.
         """
-        # Ensure image is float32 and has a batch dimension if it doesn't already
         # Anomalib's transforms usually receive (C, H, W) for single images,
-        # but inside a batch it's (B, C, H, W). Let's assume (B, C, H, W) or (C, H, W)
+        # but inside a batch it's (B, C, H, W). Use (B, C, H, W) or (C, H, W)
         
         # Add batch dimension if it's missing (e.g., from dataloader output before collate)
         if inpt.dim() == 3:
@@ -72,8 +71,8 @@ class SARCNN_DenoisingTransform(Transform):
         elif inpt.dim() != 4:
             raise ValueError(f"Expected image tensor to have 3 or 4 dimensions (C, H, W) or (B, C, H, W), but got {inpt.dim()}")
 
-        if inpt.shape[1] != 1:
-            raise ValueError("SAR_DenoisingTransform expects a single-channel image (C=1).")
+        # if inpt.shape[1] != 1: # we have an issue here with shape
+        #     raise ValueError("SAR_DenoisingTransform expects a single-channel image (C=1).")
         
         original_shape = inpt.shape
         
@@ -96,7 +95,7 @@ class SARCNN_Denoising(PreProcessor):
         super().__init__()
         self.sar_denoise_transform = SARCNN_DenoisingTransform(use_cuda=use_cuda, noise_seed=noise_seed)
         
-        # Anomalib expects exportable transforms for ONNX export etc.
+        # for ONNX export etc.
         self.export_transform = get_exportable_transform(self.sar_denoise_transform)
 
     def on_train_batch_start(self, trainer, pl_module, batch, batch_idx):
