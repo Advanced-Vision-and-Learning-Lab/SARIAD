@@ -1,6 +1,7 @@
 from anomalib.pre_processing import PreProcessor
 from anomalib.pre_processing.utils.transform import get_exportable_transform
 from torchvision.transforms.v2 import Transform, Compose, Grayscale
+from SARIAD.utils.img_utils import *
 
 import torch
 import numpy as np
@@ -47,11 +48,13 @@ class SARCNN_DenoisingTransform(Transform):
     """
     def __init__(self,
                  use_cuda: bool = True,
-                 noise_seed: int = 32
+                 noise_seed: int = 32,
+                 debug: bool = False
                 ):
         super().__init__()
         self.use_cuda = use_cuda and torch.cuda.is_available()
         self.noise_seed = noise_seed
+        self.debug = debug
         self.random_stream = np.random.RandomState(self.noise_seed)
         self.net = SAR_CNN_NET
         if self.net is None:
@@ -74,6 +77,10 @@ class SARCNN_DenoisingTransform(Transform):
         original_device = inpt.device
         original_dtype = inpt.dtype
         batch_dim_present = (inpt.dim() == 4)
+        if batch_dim_present:
+            original_image = inpt[0].cpu().permute(1, 2, 0).numpy()
+        else:
+            original_image = inpt.cpu().permute(1, 2, 0).numpy()
 
         if batch_dim_present:
             processed_input_list = [self.pre_denoise_transforms(img_tensor.cpu()) for img_tensor in inpt]
@@ -97,6 +104,14 @@ class SARCNN_DenoisingTransform(Transform):
         else:
             print(f"Warning: DnCNN output has {final_output.shape[1]} channels, not 1. Skipping 3-channel conversion.")
 
+        if self.debug:
+            if batch_dim_present:
+                img_debug(title="Final Denoised Image (First in Batch)", Original_Input=original_image,
+                          Denoised_Output=final_output[0].cpu().permute(1, 2, 0).numpy())
+            else:
+                img_debug(title="Final Denoised Image", Original_Input=original_image,
+                          Denoised_Output=final_output.cpu().permute(1, 2, 0).numpy())
+
         return final_output.to(original_device).to(original_dtype)
 
 class SARCNN_Denoising(PreProcessor):
@@ -109,8 +124,8 @@ class SARCNN_Denoising(PreProcessor):
                 ):
         super().__init__()
         self.sar_denoise_transform = SARCNN_DenoisingTransform(
-            use_cuda=use_cuda,
-            noise_seed=noise_seed
+            use_cuda = use_cuda,
+            noise_seed = noise_seed,
         )
         
         # for ONNX export etc.
