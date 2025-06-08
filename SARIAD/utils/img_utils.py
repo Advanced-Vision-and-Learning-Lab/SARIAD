@@ -1,32 +1,41 @@
 import matplotlib.pyplot as plt
 import cv2
 
-def img_debug(orig, mask, norm, title="Image Comparison"):
+def img_debug(title="Image Comparison", **images):
     """
-    Displays three images (original, mask, and normal) side by side.
+    Displays any amount of images with their corresponding titles.
 
     Parameters:
-        orig_img (np.array): The original image.
-        mask_img (np.array): The mask image.
-        norm_img (np.array): The generated normal image.
         title (str): The main title for the plot.
+        **images (dict): A dictionary where keys are image titles (str)
+                         and values are the image data (np.array).
+                         Example: img1=image_data1, img2=image_data2
     """
-    fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+    if not images:
+        print("No images provided to display.")
+        return
+
+    num_images = len(images)
+    fig, axes = plt.subplots(1, num_images, figsize=(5 * num_images, 5))
     fig.suptitle(title, fontsize=16)
 
-    axes[0].imshow(cv2.cvtColor(orig, cv2.COLOR_BGR2RGB)) # Matplot expects RGB so we convert
-    axes[0].set_title("Original Image")
-    axes[0].axis('off')
+    # Ensure axes is an array even if there's only one image
+    if num_images == 1:
+        axes = [axes]
 
-    # Mask Image
-    axes[1].imshow(mask, cmap='gray') # Use grayscale colormap for masks
-    axes[1].set_title("Mask")
-    axes[1].axis('off')
+    for i, (img_title, img_data) in enumerate(images.items()):
+        # Attempt to convert to RGB if the image has 3 channels,
+        # otherwise display as is (e.g., grayscale for masks).
+        if len(img_data.shape) == 3 and img_data.shape[2] == 3:
+            try:
+                axes[i].imshow(cv2.cvtColor(img_data, cv2.COLOR_BGR2RGB))
+            except Exception: # Fallback for non-BGR images that are 3 channel
+                 axes[i].imshow(img_data)
+        else:
+            axes[i].imshow(img_data, cmap='gray') # Assume grayscale for 1-channel images
 
-    # Normal Image
-    axes[2].imshow(cv2.cvtColor(norm, cv2.COLOR_BGR2RGB))
-    axes[2].set_title("Generated Normal Image")
-    axes[2].axis('off')
+        axes[i].set_title(img_title)
+        axes[i].axis('off')
 
     plt.tight_layout(rect=[0, 0.03, 1, 0.95])
     plt.show()
