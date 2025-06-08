@@ -1,6 +1,6 @@
 from anomalib.pre_processing import PreProcessor
 from anomalib.pre_processing.utils.transform import get_exportable_transform
-from torchvision.transforms.v2 import Transform
+from torchvision.transforms.v2 import Transform, Compose, Grayscale
 
 import torch
 import numpy as np
@@ -42,9 +42,13 @@ def postprocessing_net2int(img):
 
 class SARCNN_DenoisingTransform(Transform):
     """
-    Custom transform to apply SAR-CNN denoising.
+    Custom transform to apply SAR-CNN denoising, grayscale conversion,
+    and then convert back to 3 channels.
     """
-    def __init__(self, use_cuda: bool = True, noise_seed: int = 32):
+    def __init__(self,
+                 use_cuda: bool = True,
+                 noise_seed: int = 32
+                ):
         super().__init__()
         self.use_cuda = use_cuda and torch.cuda.is_available()
         self.noise_seed = noise_seed
@@ -55,45 +59,59 @@ class SARCNN_DenoisingTransform(Transform):
         
         if self.use_cuda:
             self.net = self.net.cuda()
+        else:
+            self.net = self.net.cpu()
+
+        self.pre_denoise_transforms = Compose([
+            Grayscale(num_output_channels=1),
+        ])
 
     def _transform(self, inpt: torch.Tensor, params=None):
         """
-        Applies the SAR denoising process to the input image tensor.
-        inpt: A torch.Tensor representing the image (C, H, W).
-              Anomalib works with (B, C, H, W), so we'll handle batch dimension.
+        Applies the SAR denoising process to the input image tensor after initial transforms.
+        inpt: A torch.Tensor representing the image (C, H, W) or (B, C, H, W).
         """
-        # Anomalib's transforms usually receive (C, H, W) for single images,
-        # but inside a batch it's (B, C, H, W). Use (B, C, H, W) or (C, H, W)
-        
-        # Add batch dimension if it's missing (e.g., from dataloader output before collate)
-        if inpt.dim() == 3:
-            inpt = inpt.unsqueeze(0) # Add batch dimension
-        elif inpt.dim() != 4:
-            raise ValueError(f"Expected image tensor to have 3 or 4 dimensions (C, H, W) or (B, C, H, W), but got {inpt.dim()}")
+        original_device = inpt.device
+        original_dtype = inpt.dtype
+        batch_dim_present = (inpt.dim() == 4)
 
-        # if inpt.shape[1] != 1: # we have an issue here with shape
-        #     raise ValueError("SAR_DenoisingTransform expects a single-channel image (C=1).")
-        
-        original_shape = inpt.shape
-        
+        if batch_dim_present:
+            processed_input_list = [self.pre_denoise_transforms(img_tensor.cpu()) for img_tensor in inpt]
+            processed_input = torch.stack(processed_input_list)
+        else:
+            processed_input = self.pre_denoise_transforms(inpt.cpu())
+            processed_input = processed_input.unsqueeze(0)
+
+        # Move to GPU if self.use_cuda is true, otherwise keep on CPU
         if self.use_cuda:
-            inpt = inpt.cuda()
+            processed_input = processed_input.to(torch.device("cuda"))
 
         with torch.no_grad():
-            processed_input = preprocessing_int2net(inpt)
-            denoised_output = self.net(processed_input)
+            denoise_input = preprocessing_int2net(processed_input)
+            denoised_output = self.net(denoise_input)
             final_output = postprocessing_net2int(denoised_output)
 
-        # Ensure output is on CPU and matches input dtype if necessary, or just return as is
-        return final_output.cpu().reshape(original_shape)
+        # Convert back to 3 channels by replicating the single channel
+        if final_output.shape[1] == 1:
+            final_output = final_output.repeat(1, 3, 1, 1) # replicate channel for B,C,H,W
+        else:
+            print(f"Warning: DnCNN output has {final_output.shape[1]} channels, not 1. Skipping 3-channel conversion.")
+
+        return final_output.to(original_device).to(original_dtype)
 
 class SARCNN_Denoising(PreProcessor):
     """
     A custom PreProcessor for Anomalib that integrates the SAR_DenoisingTransform.
     """
-    def __init__(self, use_cuda: bool = True, noise_seed: int = 32):
+    def __init__(self,
+                 use_cuda: bool = True,
+                 noise_seed: int = 32
+                ):
         super().__init__()
-        self.sar_denoise_transform = SARCNN_DenoisingTransform(use_cuda=use_cuda, noise_seed=noise_seed)
+        self.sar_denoise_transform = SARCNN_DenoisingTransform(
+            use_cuda=use_cuda,
+            noise_seed=noise_seed
+        )
         
         # for ONNX export etc.
         self.export_transform = get_exportable_transform(self.sar_denoise_transform)
