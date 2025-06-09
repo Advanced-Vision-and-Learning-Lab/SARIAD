@@ -3,37 +3,23 @@ from SARIAD.config import DATASETS_PATH
 from SARIAD.utils.blob_utils import fetch_blob
 from SARIAD.utils.img_utils import img_debug
 
-import os, cv2, random, shutil, torch
+import os, cv2, random, shutil
 import numpy as np
 from tqdm import tqdm
-from torchvision.transforms.v2 import Compose, Resize, InterpolationMode, ToImageTensor, ToDtype
 
 NAME = "Official-SSDD-OPEN"
 DRIVE_FILE_ID = "1glNJUGotrbEyk43twwB9556AdngJsynZ"
 
 class SSDD(Folder):
-    def __init__(self, sub_dataset="PSeg_SSDD", sub_category="", split="train", resize=True):
+    def __init__(self, sub_dataset="PSeg_SSDD", sub_category="", split="train"):
         self.split = split
         self.train_batch_size = 32
         self.eval_batch_size = 16
         self.image_size = (512,512)
-        self.resize = resize
-        self.augment = None
 
         fetch_blob(NAME, drive_file_id=DRIVE_FILE_ID, ext="rar")
         self.split_masks()
         self.generate_norm()
-        if self.resize:
-            self.augmentations = Compose([
-                Resize(self.image_size, interpolation=InterpolationMode.BILINEAR),
-                ToImageTensor(),
-                ToDtype(torch.float32, scale=True),
-            ])
-        else:
-            self.augmentations = Compose([
-                ToImageTensor(),
-                ToDtype(torch.float32, scale=True),
-            ])
 
         super().__init__(
             name = NAME,
@@ -43,7 +29,6 @@ class SSDD(Folder):
             abnormal_dir = f"voc_style/JPEGImages_{self.split}{'_' + sub_category if sub_category != '' else ''}",
             train_batch_size = self.train_batch_size,
             eval_batch_size = self.eval_batch_size,
-            augmentations = self.augment
         )
 
         self.setup()
