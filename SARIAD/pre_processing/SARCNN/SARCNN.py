@@ -41,12 +41,12 @@ def postprocessing_net2int(img):
     """
     return (2 * img).exp()
 
-class SARCNN_DenoisingTransform(Transform):
+class SARCNN_Transform(Transform):
     """
     Custom transform to apply SAR-CNN denoising, grayscale conversion,
     and then convert back to 3 channels.
     """
-    def __init__(self, use_cuda, noise_seed= 32, debug = False):
+    def __init__(self, model_transform, use_cuda, noise_seed= 32, debug = False):
         super().__init__()
         self.use_cuda = use_cuda and torch.cuda.is_available()
         self.noise_seed = noise_seed
@@ -62,7 +62,7 @@ class SARCNN_DenoisingTransform(Transform):
             self.net = self.net.cpu()
 
         self.pre_denoise_transforms = Compose([
-            Grayscale(num_output_channels=1),
+            model_transform, Grayscale()
         ])
 
     def _transform(self, inpt: torch.Tensor, params=None):
@@ -110,13 +110,14 @@ class SARCNN_DenoisingTransform(Transform):
 
         return final_output.to(original_device).to(original_dtype)
 
-class SARCNN_Denoising(PreProcessor):
+class SARCNN(PreProcessor):
     """
     A custom PreProcessor for Anomalib that integrates the SAR_DenoisingTransform.
     """
-    def __init__(self, use_cuda = True, noise_seed = 32):
+    def __init__(self, model_transform, use_cuda = True, noise_seed = 32):
         super().__init__()
-        self.sar_denoise_transform = SARCNN_DenoisingTransform(
+        self.sar_denoise_transform = SARCNN_Transform(
+            model_transform,
             use_cuda = use_cuda,
             noise_seed = noise_seed,
         )
