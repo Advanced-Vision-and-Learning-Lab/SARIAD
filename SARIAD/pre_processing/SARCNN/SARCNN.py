@@ -62,7 +62,8 @@ class SARCNN_Transform(Transform):
             self.net = self.net.cpu()
 
         self.pre_denoise_transforms = Compose([
-            model_transform, Grayscale()
+            model_transform, 
+            Grayscale()
         ])
 
     def _transform(self, inpt: torch.Tensor, params=None):

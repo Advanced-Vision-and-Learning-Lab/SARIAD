@@ -7,7 +7,7 @@ from SARIAD.config import DEBUG
 import torch
 import torch.nn.functional as F
 
-class Median_Transform(Transform):
+class MedianFilter_Transform(Transform):
     def __init__(self, model_transform, kernel_size=3, use_cuda=True):
         super().__init__()
         if kernel_size % 2 == 0:
@@ -36,15 +36,16 @@ class Median_Transform(Transform):
         if not batch_dim_present:
             inpt = inpt.unsqueeze(0)
 
-        # Apply pre_denoise_transforms (including model_transform and Grayscale)
-        # Apply to each image in the batch individually if needed, then stack
-        processed_input_list = [self.pre_denoise_transforms(img_tensor.cpu()) for img_tensor in inpt]
+        processed_input_list = []
+        for img_tensor in inpt:
+            img_tensor_float = img_tensor.float() # Explicitly convert to float
+            processed_input_list.append(self.pre_denoise_transforms(img_tensor_float.cpu()))
+        
         processed_input = torch.stack(processed_input_list)
+        processed_input = processed_input.float()
 
         if self.use_cuda:
             processed_input = processed_input.to(torch.device("cuda"))
-
-        processed_input = processed_input.float()
 
         denoised_output_batch = []
         for img in processed_input:
@@ -86,11 +87,11 @@ class Median_Transform(Transform):
         return denoised_image.squeeze(0).squeeze(0)
 
 
-class Median(PreProcessor):
+class MedianFilter(PreProcessor):
     def __init__(self, model_transform, kernel_size=3, use_cuda=True):
         super().__init__()
-        # Pass model_transform to Median_Transform
-        self.transform = Median_Transform(model_transform, kernel_size, use_cuda)
+
+        self.transform = MedianFilter_Transform(model_transform, kernel_size, use_cuda)
         self.export_transform = get_exportable_transform(self.transform)
 
     def on_train_batch_start(self, trainer, pl_module, batch, batch_idx):

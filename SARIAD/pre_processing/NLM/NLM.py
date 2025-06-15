@@ -133,8 +133,8 @@ class NLM_Transform(Transform):
 class NLM(PreProcessor):
     def __init__(self, model_transform, h=0.1, patch_size=7, search_window_size=21, use_cuda=True):
         super().__init__()
-        self.transform = NLM_Transform(model_transform, h, patch_size, search_window_size, use_cuda)
 
+        self.transform = NLM_Transform(model_transform, h, patch_size, search_window_size, use_cuda)
         self.export_transform = get_exportable_transform(self.transform)
 
     def on_train_batch_start(self, trainer, pl_module, batch, batch_idx):
