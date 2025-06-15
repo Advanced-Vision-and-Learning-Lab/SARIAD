@@ -2,6 +2,7 @@ from anomalib.data import Folder
 from SARIAD.config import DATASETS_PATH
 from SARIAD.utils.blob_utils import fetch_blob
 from SARIAD.utils.img_utils import img_debug
+from SARIAD.pre_processing.SARCNN import *
 
 import os, cv2, random, shutil
 import numpy as np
@@ -11,11 +12,12 @@ NAME = "Official-SSDD-OPEN"
 DRIVE_FILE_ID = "1glNJUGotrbEyk43twwB9556AdngJsynZ"
 
 class SSDD(Folder):
-    def __init__(self, sub_dataset="PSeg_SSDD", sub_category="", split="train"):
+    def __init__(self, sub_dataset="PSeg_SSDD", sub_category="", split="train", debug=False):
         self.split = split
         self.train_batch_size = 32
         self.eval_batch_size = 16
         self.image_size = (512,512)
+        self.debug = debug
 
         fetch_blob(NAME, drive_file_id=DRIVE_FILE_ID, ext="rar")
         self.split_masks()
@@ -259,8 +261,6 @@ class SSDD(Folder):
                 binary_mask = (dilated_mask > 0).astype(np.uint8) # Convert back to binary (0 or 1)
 
                 normal_image = self.apply_mask(image, binary_mask.copy())
-
-                # img_debug(image, binary_mask*255, normal_image, f"Image: {image_file}")
 
                 normal_image_path = os.path.join(normal_images_dir, image_file)
                 cv2.imwrite(normal_image_path, normal_image)
