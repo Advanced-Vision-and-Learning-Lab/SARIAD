@@ -1,6 +1,6 @@
 from anomalib.data import Folder
 from SARIAD.utils.blob_utils import fetch_blob
-from SARIAD.config import DATASETS_PATH
+from SARIAD.config import DATASETS_PATH, DEBUG
 
 NAME = "SAMPLE_dataset_public"
 LINK = "https://github.com/benjaminlewis-afrl/SAMPLE_dataset_public/archive/refs/heads/master.zip"
@@ -8,8 +8,8 @@ LINK = "https://github.com/benjaminlewis-afrl/SAMPLE_dataset_public/archive/refs
 class SAMPLE_PUBLIC(Folder):
     def __init__(self, split="train"):
         self.split = split
-        self.train_batch_size = 32
-        self.eval_batch_size = 16
+        self.train_batch_size = 1 if DEBUG else 32
+        self.eval_batch_size = 1 if DEBUG else 16
         self.image_size=(0,0)
 
         fetch_blob(NAME, link=LINK)

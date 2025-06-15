@@ -1,6 +1,6 @@
 from anomalib.data import Folder
 from SARIAD.utils.blob_utils import fetch_blob
-from SARIAD.config import PROJECT_ROOT, DATASETS_PATH
+from SARIAD.config import PROJECT_ROOT, DATASETS_PATH, DEBUG
 
 import json, glob, os, cv2
 import numpy as np
@@ -19,8 +19,8 @@ class MSTAR(Folder):
         self.chip_size = 100
         self.patch_size = 100
         self.use_phase = False
-        self.train_batch_size = 32
-        self.eval_batch_size = 32
+        self.train_batch_size = 1 if DEBUG else 32
+        self.eval_batch_size = 1 if DEBUG else 32
         self.target_filter = target_filter
         self.output_root = os.path.join(self.image_root, self.dataset, self.split)
         self.image_size = (128,128)
