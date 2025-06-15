@@ -2,6 +2,7 @@ from anomalib.pre_processing import PreProcessor
 from anomalib.pre_processing.utils.transform import get_exportable_transform
 from torchvision.transforms.v2 import Transform, Compose, Grayscale
 from SARIAD.utils.img_utils import *
+from SARIAD.config import DEBUG
 
 import torch
 import numpy as np
@@ -46,11 +47,10 @@ class SARCNN_Transform(Transform):
     Custom transform to apply SAR-CNN denoising, grayscale conversion,
     and then convert back to 3 channels.
     """
-    def __init__(self, model_transform, use_cuda, noise_seed= 32, debug = False):
+    def __init__(self, model_transform, use_cuda, noise_seed= 32):
         super().__init__()
         self.use_cuda = use_cuda and torch.cuda.is_available()
         self.noise_seed = noise_seed
-        self.debug = debug
         self.random_stream = np.random.RandomState(self.noise_seed)
         self.net = SAR_CNN_NET
         if self.net is None:
@@ -100,7 +100,7 @@ class SARCNN_Transform(Transform):
         else:
             print(f"Warning: DnCNN output has {final_output.shape[1]} channels, not 1. Skipping 3-channel conversion.")
 
-        if self.debug:
+        if DEBUG:
             if batch_dim_present:
                 img_debug(title="Final Denoised Image (First in Batch)", Original_Input=original_image,
                           Denoised_Output=final_output[0].cpu().permute(1, 2, 0).numpy())

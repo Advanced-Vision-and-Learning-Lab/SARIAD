@@ -1,5 +1,5 @@
 from anomalib.data import Folder
-from SARIAD.config import DATASETS_PATH
+from SARIAD.config import DATASETS_PATH, DEBUG
 from SARIAD.utils.blob_utils import fetch_blob
 from SARIAD.utils.img_utils import img_debug
 from SARIAD.pre_processing.SARCNN import *
@@ -12,12 +12,11 @@ NAME = "Official-SSDD-OPEN"
 DRIVE_FILE_ID = "1glNJUGotrbEyk43twwB9556AdngJsynZ"
 
 class SSDD(Folder):
-    def __init__(self, sub_dataset="PSeg_SSDD", sub_category="", split="train", debug=False):
+    def __init__(self, sub_dataset="PSeg_SSDD", sub_category="", split="train"):
         self.split = split
         self.train_batch_size = 32
         self.eval_batch_size = 16
         self.image_size = (512,512)
-        self.debug = debug
 
         fetch_blob(NAME, drive_file_id=DRIVE_FILE_ID, ext="rar")
         self.split_masks()

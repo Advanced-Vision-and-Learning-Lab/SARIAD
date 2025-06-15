@@ -2,18 +2,18 @@ from anomalib.pre_processing import PreProcessor
 from anomalib.pre_processing.utils.transform import get_exportable_transform
 from torchvision.transforms.v2 import Transform, Compose, Grayscale
 from SARIAD.utils.img_utils import img_debug
+from SARIAD.config import DEBUG
 
 import torch
 import torch.nn.functional as F
 
 class NLM_Transform(Transform):
-    def __init__(self, model_transform, h=0.1, patch_size=7, search_window_size=21, use_cuda=True, debug=False):
+    def __init__(self, model_transform, h=0.1, patch_size=7, search_window_size=21, use_cuda=True):
         super().__init__()
         self.h = h
         self.patch_size = patch_size
         self.search_window_size = search_window_size
         self.use_cuda = use_cuda and torch.cuda.is_available()
-        self.debug = debug
 
         if self.patch_size % 2 == 0 or self.search_window_size % 2 == 0:
             raise ValueError("patch_size and search_window_size must be odd.")
@@ -56,7 +56,7 @@ class NLM_Transform(Transform):
 
         final_output = final_output.to(original_device).to(original_dtype)
 
-        if self.debug:
+        if DEBUG:
             if inpt.shape[1] == 3:
                 original_image_np = inpt[0].cpu().permute(1, 2, 0).numpy()
             else:
@@ -131,9 +131,9 @@ class NLM_Transform(Transform):
 
 
 class NLM(PreProcessor):
-    def __init__(self, model_transform, h=0.1, patch_size=7, search_window_size=21, use_cuda=True, debug=False):
+    def __init__(self, model_transform, h=0.1, patch_size=7, search_window_size=21, use_cuda=True):
         super().__init__()
-        self.transform = NLM_Transform(model_transform, h, patch_size, search_window_size, use_cuda, debug)
+        self.transform = NLM_Transform(model_transform, h, patch_size, search_window_size, use_cuda)
 
         self.export_transform = get_exportable_transform(self.transform)
 
