@@ -7,7 +7,7 @@ import torch
 import torch.nn.functional as F
 
 class NLM_Transform(Transform):
-    def __init__(self, h=0.1, patch_size=7, search_window_size=21, use_cuda=True, debug=False):
+    def __init__(self, model_transform, h=0.1, patch_size=7, search_window_size=21, use_cuda=True, debug=False):
         super().__init__()
         self.h = h
         self.patch_size = patch_size
@@ -22,6 +22,7 @@ class NLM_Transform(Transform):
         self.search_half_size = self.search_window_size // 2
 
         self.pre_denoise_transforms = Compose([
+            model_transform,
             Grayscale()
         ])
 
@@ -132,7 +133,7 @@ class NLM_Transform(Transform):
 class NLM(PreProcessor):
     def __init__(self, model_transform, h=0.1, patch_size=7, search_window_size=21, use_cuda=True, debug=False):
         super().__init__()
-        self.transform = NLM_Transform(h, patch_size, search_window_size, use_cuda, debug)
+        self.transform = NLM_Transform(model_transform, h, patch_size, search_window_size, use_cuda, debug)
 
         self.export_transform = get_exportable_transform(self.transform)
 
