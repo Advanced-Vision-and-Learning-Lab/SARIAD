@@ -27,7 +27,6 @@ class MedianFilter_Transform(Transform):
         batch_dim_present = (inpt.dim() == 4)
 
         if DEBUG:
-            # Capture original image for debug BEFORE any transformations are applied
             if batch_dim_present:
                 original_image_for_debug = inpt[0].cpu().permute(1, 2, 0).numpy()
             else:
