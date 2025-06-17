@@ -1362,9 +1362,9 @@ wheels = [
 ]
 
 [[package]]
-name = "nlm-torch"
-version = "0.1.1"
-source = { git = "https://github.com/lucianchauvin/torch_nlm#5ee7fe35e8cc6d59b7427d59e1df4a028955d6b3" }
+name = "nlm-torch-new"
+version = "0.1.3"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "einops" },
     { name = "numpy" },
@@ -1373,6 +1373,10 @@ dependencies = [
     { name = "scikit-image" },
     { name = "torch" },
     { name = "tqdm" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/6a/92/ea672269dc0524920fee49ba1f51db371a8d67bda27be97c84635dd177c2/nlm_torch_new-0.1.3.tar.gz", hash = "sha256:8b99242bc547a4b633059a911d4d90a6eef62019a66e1bf6cf4c9c43c7fc8633", size = 8925, upload-time = "2025-06-17T21:05:44.712Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/7f/34/631a2a0217283f6847269b11e6448a716f0c1d3ceaba29789c92350949b3/nlm_torch_new-0.1.3-py3-none-any.whl", hash = "sha256:f6bc972567360803d7953ad9dc4b93f8bc3f1e2fb037247b3c9785c07af68c33", size = 11535, upload-time = "2025-06-17T21:05:43.559Z" },
 ]
 
 [[package]]
@@ -2316,7 +2320,7 @@ wheels = [
 
 [[package]]
 name = "sariad"
-version = "0.1.3"
+version = "0.1.5"
 source = { editable = "." }
 dependencies = [
     { name = "anomalib", extra = ["loggers"] },
@@ -2327,7 +2331,7 @@ dependencies = [
     { name = "kagglehub" },
     { name = "kornia" },
     { name = "lightning" },
-    { name = "nlm-torch" },
+    { name = "nlm-torch-new" },
     { name = "onnx" },
     { name = "open-clip-torch" },
     { name = "opencv-python" },
@@ -2352,7 +2356,7 @@ requires-dist = [
     { name = "kagglehub", specifier = ">=0.3.12" },
     { name = "kornia", specifier = ">=0.8.1" },
     { name = "lightning", specifier = ">=2.5.1.post0" },
-    { name = "nlm-torch", git = "https://github.com/lucianchauvin/torch_nlm" },
+    { name = "nlm-torch-new", specifier = ">=0.1.3" },
     { name = "onnx", specifier = ">=1.18.0" },
     { name = "open-clip-torch", specifier = ">=2.32.0" },
     { name = "opencv-python", specifier = ">=4.11.0.86" },

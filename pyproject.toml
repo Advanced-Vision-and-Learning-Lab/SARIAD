@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "SARIAD"
-version = "0.1.4"
+version = "0.1.5"
 description = "This package is designed for anomaly detection in Synthetic Aperture Radar (SAR) images, leveraging PyTorch Lightning and models from Anomalib. The package is modular, allowing easy benchmarking and dataset integration."
 readme = "README.md"
 requires-python = ">=3.13"
@@ -27,7 +27,7 @@ dependencies = [
     "kagglehub>=0.3.12",
     "kornia>=0.8.1",
     "lightning>=2.5.1.post0",
-    "nlm-torch @ git+https://github.com/lucianchauvin/torch_nlm.git",
+    "nlm-torch-new>=0.1.3",
     "onnx>=1.18.0",
     "open-clip-torch>=2.32.0",
     "opencv-python>=4.11.0.86",
@@ -47,6 +47,3 @@ Homepage = "https://github.com/Advanced-Vision-and-Learning-Lab/SARIAD"
 
 [tool.setuptools.packages.find]
 where = ["."]
-
-[tool.uv.sources]
-nlm-torch = { git = "https://github.com/lucianchauvin/torch_nlm" }
