@@ -14,20 +14,16 @@ class NLM_Transform(Transform):
         self.kernel_size = kernel_size
         self.use_cuda = use_cuda and torch.cuda.is_available()
 
-        self.pre_denoise_transforms = Compose([
+        self.pre_transforms = Compose([
             model_transform,
             Grayscale()
         ])
 
-    def _transform(self, inpt: torch.Tensor, params=None):
+    def transform(self, inpt: torch.Tensor, params=None):
         original_device = inpt.device
         original_dtype = inpt.dtype
-        batch_dim_present = (inpt.dim() == 4)
 
-        if not batch_dim_present:
-            inpt = inpt.unsqueeze(0)
-
-        processed_input_list = [self.pre_denoise_transforms(img_tensor.cpu()) for img_tensor in inpt]
+        processed_input_list = [self.pre_transforms(img_tensor.cpu()) for img_tensor in inpt]
         processed_input = torch.stack(processed_input_list)
 
         if self.use_cuda:
@@ -37,11 +33,10 @@ class NLM_Transform(Transform):
 
         denoised_output_batch = []
         for img in processed_input:
-            if img.dim() == 4 and img.shape[1] == 1:
+            if img.dim() == 3:
                 denoised_output_batch.append(nlm2d(img.squeeze(0), kernel_size=self.kernel_size, std=self.std))
             else:
-                raise ValueError("Input image for NLM must be 2D (CxHxW) or 3D (CxDxHxW).")
-
+                raise ValueError("Shape for NLM must be 2D (CxHxW)")
 
         final_output = torch.stack(denoised_output_batch)
 
@@ -69,10 +64,10 @@ class NLM_Transform(Transform):
         return final_output
 
 class NLM(PreProcessor):
-    def __init__(self, model_transform, h=0.1, patch_size=7, search_window_size=21, use_cuda=True):
+    def __init__(self, model_transform, std=0.1, kernel_size=21, use_cuda=True):
         super().__init__()
 
-        self.transform = NLM_Transform(model_transform, h, patch_size, search_window_size, use_cuda)
+        self.transform = NLM_Transform(model_transform, std, kernel_size, use_cuda)
         self.export_transform = get_exportable_transform(self.transform)
 
     def on_train_batch_start(self, trainer, pl_module, batch, batch_idx):
