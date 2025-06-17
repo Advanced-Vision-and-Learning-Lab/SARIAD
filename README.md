@@ -35,7 +35,7 @@ SARIAD/
 ```
 
 ## Installation
-Our package is on PyPI and thus can simply be installed with `pip install SARIAD`.
+Our package is on PyPI and thus can simply be installed with `pip install SARIAD` using `python>=3.13`.
 
 ### Development Installation
 ```bash
