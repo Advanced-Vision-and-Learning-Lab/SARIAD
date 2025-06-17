@@ -61,12 +61,12 @@ class SARCNN_Transform(Transform):
         else:
             self.net = self.net.cpu()
 
-        self.pre_denoise_transforms = Compose([
+        self.pre_transform = Compose([
             model_transform, 
             Grayscale()
         ])
 
-    def _transform(self, inpt: torch.Tensor, params=None):
+    def transform(self, inpt: torch.Tensor, params=None):
         """
         Applies the SAR denoising process to the input image tensor after initial transforms.
         inpt: A torch.Tensor representing the image (C, H, W) or (B, C, H, W).
@@ -80,10 +80,10 @@ class SARCNN_Transform(Transform):
             original_image = inpt.cpu().permute(1, 2, 0).numpy()
 
         if batch_dim_present:
-            processed_input_list = [self.pre_denoise_transforms(img_tensor.cpu()) for img_tensor in inpt]
+            processed_input_list = [self.pre_transform(img_tensor.cpu()) for img_tensor in inpt]
             processed_input = torch.stack(processed_input_list)
         else:
-            processed_input = self.pre_denoise_transforms(inpt.cpu())
+            processed_input = self.pre_transform(inpt.cpu())
             processed_input = processed_input.unsqueeze(0)
 
         # Move to GPU if self.use_cuda is true, otherwise keep on CPU
@@ -123,7 +123,6 @@ class SARCNN(PreProcessor):
             noise_seed = noise_seed,
         )
         
-        # for ONNX export etc.
         self.export_transform = get_exportable_transform(self.sar_denoise_transform)
 
     def on_train_batch_start(self, trainer, pl_module, batch, batch_idx):

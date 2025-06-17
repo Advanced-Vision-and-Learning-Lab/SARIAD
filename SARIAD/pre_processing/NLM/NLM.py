@@ -14,7 +14,7 @@ class NLM_Transform(Transform):
         self.kernel_size = kernel_size
         self.use_cuda = use_cuda and torch.cuda.is_available()
 
-        self.pre_transforms = Compose([
+        self.pre_transform = Compose([
             model_transform,
             Grayscale()
         ])
@@ -23,7 +23,7 @@ class NLM_Transform(Transform):
         original_device = inpt.device
         original_dtype = inpt.dtype
 
-        processed_input_list = [self.pre_transforms(img_tensor.cpu()) for img_tensor in inpt]
+        processed_input_list = [self.pre_transform(img_tensor.cpu()) for img_tensor in inpt]
         processed_input = torch.stack(processed_input_list)
 
         if self.use_cuda:
