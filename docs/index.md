@@ -35,24 +35,12 @@ SARIAD/
 ```
 
 ## Installation
-For now we require a `python~=3.11` enviorment. This can be obtained with [pyenv](https://github.com/pyenv/pyenv)
-or on windows with [pyenv-win](https://github.com/pyenv-win/pyenv-win).
+Our package is on PyPI and thus can simply be installed with `pip install SARIAD`.
 
+### Development Installation
 ```bash
 # Clone the repository
 git clone https://github.com/username/SARIAD.git
-
-# Using pyenv to set up python~=3.11 virtual environment
-pyenv install 3.11.12
-pyenv local 3.11.12
-python -m venv venv
-
-# Linux/MacOS
-source venv/bin/activate
-
-# Windows
-.\venv\Scripts\Activate.ps1 # Powershell
-.\venv\Scripts\activate.bat # Command Prompt
 
 # Install SARIAD in editable mode
 pip install -e .
