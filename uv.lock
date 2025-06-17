@@ -1363,8 +1363,8 @@ wheels = [
 
 [[package]]
 name = "nlm-torch"
-version = "0.1.0"
-source = { git = "https://github.com/lucianchauvin/torch_nlm#492a122ce2b48848eaacea651e898c3442736227" }
+version = "0.1.1"
+source = { git = "https://github.com/lucianchauvin/torch_nlm#5ee7fe35e8cc6d59b7427d59e1df4a028955d6b3" }
 dependencies = [
     { name = "einops" },
     { name = "numpy" },
@@ -2316,7 +2316,7 @@ wheels = [
 
 [[package]]
 name = "sariad"
-version = "0.1.1"
+version = "0.1.2"
 source = { editable = "." }
 dependencies = [
     { name = "anomalib", extra = ["loggers"] },
