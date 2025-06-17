@@ -5,21 +5,14 @@ from SARIAD.utils.img_utils import img_debug
 from SARIAD.config import DEBUG
 
 import torch
-import torch.nn.functional as F
+from torch_nlm import nlm2d
 
 class NLM_Transform(Transform):
-    def __init__(self, model_transform, h=0.1, patch_size=7, search_window_size=21, use_cuda=True):
+    def __init__(self, model_transform, std=0.1, kernel_size=21, use_cuda=True):
         super().__init__()
-        self.h = h
-        self.patch_size = patch_size
-        self.search_window_size = search_window_size
+        self.std = std
+        self.kernel_size = kernel_size
         self.use_cuda = use_cuda and torch.cuda.is_available()
-
-        if self.patch_size % 2 == 0 or self.search_window_size % 2 == 0:
-            raise ValueError("patch_size and search_window_size must be odd.")
-
-        self.patch_half_size = self.patch_size // 2
-        self.search_half_size = self.search_window_size // 2
 
         self.pre_denoise_transforms = Compose([
             model_transform,
@@ -44,7 +37,11 @@ class NLM_Transform(Transform):
 
         denoised_output_batch = []
         for img in processed_input:
-            denoised_output_batch.append(self._apply_nlm_single_image(img.squeeze(0)))
+            if img.dim() == 4 and img.shape[1] == 1:
+                denoised_output_batch.append(nlm2d(img.squeeze(0), kernel_size=self.kernel_size, std=self.std))
+            else:
+                raise ValueError("Input image for NLM must be 2D (CxHxW) or 3D (CxDxHxW).")
+
 
         final_output = torch.stack(denoised_output_batch)
 
@@ -70,65 +67,6 @@ class NLM_Transform(Transform):
             img_debug(title="NLM Denoised Image (First in Batch)", Original_Input=original_image_np, Denoised_Output=denoised_image_np)
 
         return final_output
-
-    def _apply_nlm_single_image(self, img: torch.Tensor):
-        if img.dim() == 2:
-            img = img.unsqueeze(0).unsqueeze(0)
-        elif img.dim() == 3 and img.shape[0] == 1:
-            img = img.unsqueeze(0)
-        else:
-            raise ValueError("Input image must be (H, W) or (1, H, W) for single image NLM.")
-
-        padded_img = F.pad(img, (self.search_half_size, self.search_half_size,
-                                  self.search_half_size, self.search_half_size), mode='reflect')
-
-        H, W = img.shape[-2:]
-        denoised_image = torch.zeros_like(img)
-
-        patches = padded_img.unfold(2, self.patch_size, 1).unfold(3, self.patch_size, 1)
-
-        for i in range(H):
-            for j in range(W):
-                p_patch = patches[:, :, i, j, :, :].reshape(1, -1)
-
-                search_start_i = max(0, i - self.search_half_size)
-                search_end_i = min(H, i + self.search_half_size + 1)
-                search_start_j = max(0, j - self.search_half_size)
-                search_end_j = min(W, j + self.search_half_size + 1)
-
-                search_region_patches = patches[:, :,
-                                                search_start_i : search_end_i,
-                                                search_start_j : search_end_j,
-                                                :, :]
-                search_region_patches_flat = search_region_patches.reshape(1, -1, self.patch_size * self.patch_size)
-
-                if search_region_patches_flat.numel() == 0:
-                    continue
-
-                diff = search_region_patches_flat - p_patch.unsqueeze(1)
-                squared_diff = torch.sum(diff**2, dim=-1)
-
-                weights = torch.exp(-squared_diff / (self.h**2))
-                
-                search_grid_i, search_grid_j = torch.meshgrid(
-                    torch.arange(search_start_i, search_end_i, device=img.device),
-                    torch.arange(search_start_j, search_end_j, device=img.device),
-                    indexing='ij'
-                )
-                
-                iq_values_flat = img[0, 0, search_grid_i.flatten(), search_grid_j.flatten()]
-
-                sum_weights = torch.sum(weights)
-                if sum_weights > 0:
-                    normalized_weights = weights / sum_weights
-                else:
-                    normalized_weights = torch.zeros_like(weights)
-
-                denoised_pixel = torch.sum(normalized_weights * iq_values_flat.float().reshape(normalized_weights.shape))
-                denoised_image[0, 0, i, j] = denoised_pixel
-        
-        return denoised_image.squeeze(0).squeeze(0)
-
 
 class NLM(PreProcessor):
     def __init__(self, model_transform, h=0.1, patch_size=7, search_window_size=21, use_cuda=True):
