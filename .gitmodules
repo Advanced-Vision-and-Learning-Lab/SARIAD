@@ -1,6 +1,3 @@
-[submodule "anomalib"]
-	path = anomalib
-	url = https://github.com/openvinotoolkit/anomalib
-[submodule "SARIAD/pre_processing/SARCNN/SARIAD/pre_processing/SARCNN/SARCNN_SRC"]
-	path = SARIAD/pre_processing/SARCNN/SARIAD/pre_processing/SARCNN/SARCNN_SRC
+[submodule "SARIAD/pre_processing/SARCNN/SARCNN_SRC"]
+	path = SARIAD/pre_processing/SARCNN/SARCNN_SRC
 	url = git@github.com:grip-unina/SAR-CNN.git
