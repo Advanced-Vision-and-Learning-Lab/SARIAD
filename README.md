@@ -40,7 +40,7 @@ Our package is on PyPI and thus can simply be installed with `pip install SARIAD
 ### Development Installation
 ```bash
 # Clone the repository
-git clone [https://github.com/username/SARIAD.git](https://github.com/Advanced-Vision-and-Learning-Lab/SARIAD)
+git clone https://github.com/Advanced-Vision-and-Learning-Lab/SARIAD
 
 # Install SARIAD in editable mode
 pip install -e .
