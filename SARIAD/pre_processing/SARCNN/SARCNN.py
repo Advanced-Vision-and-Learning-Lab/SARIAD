@@ -8,17 +8,18 @@ import torch
 import numpy as np
 import pickle
 import os
+from pathlib import Path
 
 DIR = os.path.dirname(__file__)
 
 # Load the SAR-CNN 2017 network once
 try:
     from .SARCNN_SRC.models.DnCNN import DnCNN
-    with open(f"{DIR}/SARCNN_SRC/weights/sar_sync/SAR_CNN_e50.pkl", "rb") as fid:
+    with open(Path(f"{DIR}/SARCNN_SRC/weights/sar_sync/SAR_CNN_e50.pkl"), "rb") as fid:
         dncnn_opt = dict(**pickle.load(fid).dncnn)
         dncnn_opt["residual"] = True
     SAR_CNN_NET = DnCNN(1, 1, **dncnn_opt)
-    SAR_CNN_NET.load_state_dict(torch.load(f'{DIR}/SARCNN_SRC/weights/sar_sync/SAR_CNN_e50.t7')['net'])
+    SAR_CNN_NET.load_state_dict(torch.load(Path(f"{DIR}/SARCNN_SRC/weights/sar_sync/SAR_CNN_e50.t7"))['net'])
     SAR_CNN_NET.eval()
     if torch.cuda.is_available():
         SAR_CNN_NET = SAR_CNN_NET.cuda()
@@ -47,14 +48,14 @@ class SARCNN_Transform(Transform):
     Custom transform to apply SAR-CNN denoising, grayscale conversion,
     and then convert back to 3 channels.
     """
-    def __init__(self, model_transform, use_cuda, noise_seed= 32):
+    def __init__(self, model, use_cuda, noise_seed = 32):
         super().__init__()
         self.use_cuda = use_cuda and torch.cuda.is_available()
         self.noise_seed = noise_seed
         self.random_stream = np.random.RandomState(self.noise_seed)
         self.net = SAR_CNN_NET
         if self.net is None:
-            raise RuntimeError("SAR_CNN_NET was not loaded. Cannot initialize SARCNN_DenoisingTransform.")
+            raise RuntimeError("SAR_CNN_NET was not loaded. Cannot initialize SARCNN_Transform.")
         
         if self.use_cuda:
             self.net = self.net.cuda()
@@ -62,8 +63,7 @@ class SARCNN_Transform(Transform):
             self.net = self.net.cpu()
 
         self.pre_transform = Compose([
-            model_transform, 
-            Grayscale()
+            *model.configure_pre_processor().transform.transforms, 
         ])
 
     def transform(self, inpt: torch.Tensor, params=None):

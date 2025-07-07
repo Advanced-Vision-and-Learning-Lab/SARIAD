@@ -1,42 +1,36 @@
-# Import torch and set matrix multiplication precision
-import torch
-torch.set_float32_matmul_precision('medium')
-
+import SARIAD
 from anomalib.engine import Engine
-#1 shots
 from anomalib.models import Padim
 from anomalib import TaskType
 from anomalib.deploy import ExportType
 
-# import our SAR datasets
+# load a SAR datamodules
 from SARIAD.datasets import MSTAR
-from SARIAD.datasets import HRSID
-from SARIAD.datasets import SSDD
-
-# import the SAR CNN preprocessor
-from SARIAD.pre_processing import SARCNN_Denoising
-
-# load our MSTAR model
 datamodule = MSTAR()
-
-# load our HRSID model
+# from SARIAD.datasets import HRSID
 # datamodule = HRSID()
-
+# from SARIAD.datasets import SSDD
+# datamodule = SSDD()
 datamodule.setup()
 
 i, train_data = next(enumerate(datamodule.train_dataloader()))
 print("Batch Image Shape", train_data.image.shape)
 
-# load PaDiM
+# load the PaDiM model
 model = Padim()
 
-# load PaDiM with the SARCNN_Denoising pre_processor
-# model = Padim(pre_processor=SARCNN_Denoising())
+# load a SAR pre processors
+# from SARIAD.pre_processing import SARCNN
+# model = Padim(pre_processor=SARCNN())
+# from SARIAD.pre_processing import NLM
+# model = Padim(pre_processor=NLM())
+# from SARIAD.pre_processing import MedianFilter
+# model = Padim(pre_processor=MedianFilter())
 
 engine = Engine()
 engine.fit(model=model, datamodule=datamodule)
 
-# test Model
+# test model
 test_results = engine.test(
     model=model,
     datamodule=datamodule,
