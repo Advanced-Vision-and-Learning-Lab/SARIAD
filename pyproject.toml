@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "SARIAD"
-version = "0.1.6"
+version = "0.1.7"
 description = "This package is designed for anomaly detection in Synthetic Aperture Radar (SAR) images, leveraging PyTorch Lightning and models from Anomalib. The package is modular, allowing easy benchmarking and dataset integration."
 readme = "README.md"
 requires-python = ">=3.13"
