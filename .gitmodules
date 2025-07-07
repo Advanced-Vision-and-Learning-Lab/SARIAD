@@ -1,3 +1,9 @@
 [submodule "SARIAD/pre_processing/SARCNN/SARCNN_SRC"]
 	path = SARIAD/pre_processing/SARCNN/SARCNN_SRC
 	url = git@github.com:grip-unina/SAR-CNN.git
+[submodule "SARIAD/models/image/MFSA/SARDet_100K"]
+	path = SARIAD/models/image/MFSA/SARDet_100K
+	url = https://github.com/zcablii/SARDet_100K/
+[submodule "SARIAD/models/image/SARATR-X/SARATR-X"]
+	path = SARIAD/models/image/SARATR-X/SARATRX
+	url = https://github.com/waterdisappear/SARATR-X
