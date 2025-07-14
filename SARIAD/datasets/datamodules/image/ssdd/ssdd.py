@@ -1,6 +1,6 @@
 from anomalib.data import Folder
 from SARIAD.config import DATASETS_PATH, DEBUG
-from SARIAD.utils.blob_utils import fetch_blob
+from SARIAD.utils.blob_utils import fetch_dataset
 from SARIAD.utils.img_utils import img_debug
 from SARIAD.pre_processing.SARCNN import *
 
@@ -18,13 +18,13 @@ class SSDD(Folder):
         self.eval_batch_size = 1 if DEBUG else 16
         self.image_size = (512,512)
 
-        fetch_blob(NAME, drive_file_id=DRIVE_FILE_ID, ext="rar")
+        fetch_dataset(NAME, drive_file_id=DRIVE_FILE_ID, ext="rar")
         self.split_masks()
         self.generate_norm()
 
         super().__init__(
             name = NAME,
-            root = f"{DATASETS_PATH}/{NAME}/{sub_dataset}",
+            root = os.path.join(DATASETS_PATH, NAME, sub_dataset),
             mask_dir = f"voc_style/JPEGImages_PSeg_GT_Mask_{self.split}",
             normal_dir = f"voc_style/JPEGImages_{self.split}_norm",
             abnormal_dir = f"voc_style/JPEGImages_{self.split}{'_' + sub_category if sub_category != '' else ''}",

@@ -1,6 +1,8 @@
 from anomalib.data import Folder
-from SARIAD.utils.blob_utils import fetch_blob
+from SARIAD.utils.blob_utils import fetch_dataset
 from SARIAD.config import DATASETS_PATH, DEBUG
+
+import os
 
 NAME = "SAMPLE_dataset_public"
 LINK = "https://github.com/benjaminlewis-afrl/SAMPLE_dataset_public/archive/refs/heads/master.zip"
@@ -12,11 +14,11 @@ class SAMPLE_PUBLIC(Folder):
         self.eval_batch_size = 1 if DEBUG else 16
         self.image_size=(0,0)
 
-        fetch_blob(NAME, link=LINK)
+        fetch_dataset(NAME, link=LINK)
 
         super().__init__(
             name = NAME,
-            root = f"{DATASETS_PATH}/{NAME}/",
+            root = os.path.join(DATASETS_PATH,NAME),
             mask_dir = f"",
             normal_dir = f"",
             abnormal_dir = f"",
