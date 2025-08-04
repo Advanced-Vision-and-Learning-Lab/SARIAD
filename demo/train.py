@@ -5,6 +5,9 @@ from anomalib import TaskType
 from anomalib.deploy import ExportType
 
 if __name__ == '__main__':
+    # from anomalib.data import MVTecAD
+    # datamodule = MVTecAD()
+
     # load a SAR datamodules
     from SARIAD.datasets import MSTAR
     datamodule = MSTAR()
@@ -12,21 +15,27 @@ if __name__ == '__main__':
     # datamodule = HRSID()
     # from SARIAD.datasets import SSDD
     # datamodule = SSDD()
+
     datamodule.setup()
 
     i, train_data = next(enumerate(datamodule.train_dataloader()))
     print("Batch Image Shape", train_data.image.shape)
 
-    # load the PaDiM model
+    # load the a model
     model = Padim()
+
+    # from SARIAD.models import SARATRX
+    # model = SARATRX()
 
     # load a SAR pre processors
     # from SARIAD.pre_processing import SARCNN
-    # model = Padim(pre_processor=SARCNN())
+    # model = Padim(pre_processor=SARCNN(model=Padim))
+
     # from SARIAD.pre_processing import NLM
-    # model = Padim(pre_processor=NLM())
+    # model = Padim(pre_processor=NLM(model=Padim))
+
     # from SARIAD.pre_processing import MedianFilter
-    # model = Padim(pre_processor=MedianFilter())
+    # model = Padim(pre_processor=MedianFilter(model=Padim))
 
     engine = Engine()
     engine.fit(model=model, datamodule=datamodule)

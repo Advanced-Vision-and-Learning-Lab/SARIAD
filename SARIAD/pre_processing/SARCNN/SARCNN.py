@@ -1,8 +1,10 @@
 from anomalib.pre_processing import PreProcessor
 from anomalib.pre_processing.utils.transform import get_exportable_transform
 from torchvision.transforms.v2 import Transform, Compose, Grayscale
+from torchvision import tv_tensors
 from SARIAD.utils.img_utils import *
 from SARIAD.config import DEBUG
+from typing import Any, Dict, List
 
 import torch
 import numpy as np
@@ -62,77 +64,52 @@ class SARCNN_Transform(Transform):
         else:
             self.net = self.net.cpu()
 
-        self.pre_transform = Compose([
-            *model.configure_pre_processor().transform.transforms, 
-        ])
+        self.pre_transform = model.configure_pre_processor().transform
 
-    def transform(self, inpt: torch.Tensor, params=None):
-        """
-        Applies the SAR denoising process to the input image tensor after initial transforms.
-        inpt: A torch.Tensor representing the image (C, H, W) or (B, C, H, W).
-        """
-        original_device = inpt.device
-        original_dtype = inpt.dtype
-        batch_dim_present = (inpt.dim() == 4)
-        if batch_dim_present:
-            original_image = inpt[0].cpu().permute(1, 2, 0).numpy()
-        else:
-            original_image = inpt.cpu().permute(1, 2, 0).numpy()
+    def transform(self, inpt: Any, params: Dict[str, Any]):
+        if type(inpt) == tv_tensors._image.Image:
+            original_device = inpt.device
+            original_dtype = inpt.dtype
 
-        if batch_dim_present:
             processed_input_list = [self.pre_transform(img_tensor.cpu()) for img_tensor in inpt]
             processed_input = torch.stack(processed_input_list)
-        else:
-            processed_input = self.pre_transform(inpt.cpu())
-            processed_input = processed_input.unsqueeze(0)
 
-        # Move to GPU if self.use_cuda is true, otherwise keep on CPU
-        if self.use_cuda:
-            processed_input = processed_input.to(torch.device("cuda"))
+            if self.use_cuda:
+                processed_input = processed_input.to(torch.device("cuda"))
 
-        with torch.no_grad():
-            denoise_input = preprocessing_int2net(processed_input)
-            denoised_output = self.net(denoise_input)
-            final_output = postprocessing_net2int(denoised_output)
+            processed_input = processed_input.float()
 
-        # Convert back to 3 channels by replicating the single channel
-        if final_output.shape[1] == 1:
-            final_output = final_output.repeat(1, 3, 1, 1) # replicate channel for B,C,H,W
-        else:
-            print(f"Warning: DnCNN output has {final_output.shape[1]} channels, not 1. Skipping 3-channel conversion.")
+            denoised_output_batch = []
+            with torch.no_grad():
+                denoise_input = preprocessing_int2net(processed_input.mean(dim=1, keepdim=True))
+                final_output = self.net(denoise_input).repeat(1, 3, 1, 1)
 
-        if DEBUG:
-            if batch_dim_present:
-                img_debug(title="Final Denoised Image (First in Batch)", Original_Input=original_image,
-                          Denoised_Output=final_output[0].cpu().permute(1, 2, 0).numpy())
-            else:
-                img_debug(title="Final Denoised Image", Original_Input=original_image,
-                          Denoised_Output=final_output.cpu().permute(1, 2, 0).numpy())
-
-        return final_output.to(original_device).to(original_dtype)
+            final_output = final_output.to(original_device).to(original_dtype)
+            return final_output
+        return self.pre_transform(inpt)
 
 class SARCNN(PreProcessor):
     """
     A custom PreProcessor for Anomalib that integrates the SAR_DenoisingTransform.
     """
-    def __init__(self, model_transform, use_cuda = True, noise_seed = 32):
+    def __init__(self, model, use_cuda = True, noise_seed = 32):
         super().__init__()
-        self.sar_denoise_transform = SARCNN_Transform(
-            model_transform,
+        self.transform = SARCNN_Transform(
+            model,
             use_cuda = use_cuda,
             noise_seed = noise_seed,
         )
         
-        self.export_transform = get_exportable_transform(self.sar_denoise_transform)
+        self.export_transform = get_exportable_transform(self.transform)
 
     def on_train_batch_start(self, trainer, pl_module, batch, batch_idx):
-        batch.image = self.sar_denoise_transform(batch.image)
+        batch.image, batch.gt_mask = self.transform(batch.image, batch.gt_mask)
 
     def on_val_batch_start(self, trainer, pl_module, batch, batch_idx):
-        batch.image = self.sar_denoise_transform(batch.image)
+        batch.image, batch.gt_mask = self.transform(batch.image, batch.gt_mask)
 
     def on_test_batch_start(self, trainer, pl_module, batch, batch_idx):
-        batch.image = self.sar_denoise_transform(batch.image)
+        batch.image, batch.gt_mask = self.transform(batch.image, batch.gt_mask)
 
     def on_predict_batch_start(self, trainer, pl_module, batch, batch_idx):
-        batch.image = self.sar_denoise_transform(batch.image)
+        batch.image, batch.gt_mask = self.transform(batch.image, batch.gt_mask)
