@@ -22,6 +22,7 @@ class HRSID(Folder):
             mask_dir = f"{self.split}_masks",
             normal_dir = f"{self.split}_norm",
             abnormal_dir = f"{self.split}_images",
+            normal_test_dir = "test_good",
             train_batch_size = self.train_batch_size,
             eval_batch_size = self.eval_batch_size,
         )

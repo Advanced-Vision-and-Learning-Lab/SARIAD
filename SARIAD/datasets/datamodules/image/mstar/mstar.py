@@ -37,6 +37,7 @@ class MSTAR(Folder):
             mask_dir = f"{self.split}/masks",
             normal_dir = f"{self.split}/norm",
             abnormal_dir = f"{self.split}/anom",
+            normal_test_dir = "test/norm",
             train_batch_size = self.train_batch_size,
             eval_batch_size = self.eval_batch_size,
         )
