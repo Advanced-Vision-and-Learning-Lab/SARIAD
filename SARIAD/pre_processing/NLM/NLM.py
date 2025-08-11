@@ -50,7 +50,7 @@ class NLM(PreProcessor):
         super().__init__()
 
         self.transform = NLM_Transform(model, std, kernel_size, use_cuda)
-        self.export_transform = get_exportable_transform(self.transform)
+        # self.export_transform = get_exportable_transform(self.transform)
 
     def on_train_batch_start(self, trainer, pl_module, batch, batch_idx):
         batch.image, batch.gt_mask = self.transform(batch.image, batch.gt_mask)
