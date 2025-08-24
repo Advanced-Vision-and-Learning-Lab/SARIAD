@@ -36,6 +36,7 @@ dependencies = [
     "pynvim>=0.5.2",
     "rarfile>=4.2",
     "scikit-image>=0.25.2",
+    "seaborn>=0.13.2",
     "tifffile>=2025.6.11",
     "timm>=1.0.15",
     "torch>=2.7.1",

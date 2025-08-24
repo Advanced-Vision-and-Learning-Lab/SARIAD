@@ -1,18 +1,16 @@
-import SARIAD
 from anomalib.engine import Engine
 from anomalib.models import Padim
-from anomalib import TaskType
-from anomalib.deploy import ExportType
+
+import torch
 
 if __name__ == '__main__':
-    # from anomalib.data import MVTecAD
-    # datamodule = MVTecAD()
-
-    # load a SAR datamodules
+    # load a SAR datamodule
     from SARIAD.datasets import MSTAR
     datamodule = MSTAR()
+
     # from SARIAD.datasets import HRSID
     # datamodule = HRSID()
+
     # from SARIAD.datasets import SSDD
     # datamodule = SSDD()
 
@@ -21,7 +19,7 @@ if __name__ == '__main__':
     i, train_data = next(enumerate(datamodule.train_dataloader()))
     print("Batch Image Shape", train_data.image.shape)
 
-    # load the a model
+    # load a model
     model = Padim()
 
     # from SARIAD.models import SARATRX
@@ -40,17 +38,22 @@ if __name__ == '__main__':
     engine = Engine()
     engine.fit(model=model, datamodule=datamodule)
 
-    # test model
-    test_results = engine.test(
+    torch.cuda.empty_cache()
+
+    # predict the whole dataset using latest weights
+    predict_results = engine.predict(
         model=model,
         datamodule=datamodule,
-        ckpt_path=engine.trainer.checkpoint_callback.best_model_path,
     )
 
-    # export model to for OpenVINO inference
-    engine.export(
-        model=model,
-        export_type=ExportType.OPENVINO,
-        datamodule=datamodule,
-        export_root="./weights/openvino",
-    )
+    # compute metrics using SARIAD
+    from SARIAD.utils import inf
+    metrics = inf.Metrics(predict_results)
+    print(metrics.get_all_metrics())
+    metrics.save_all("results/metrics")
+
+    # run Anomalibs built in test (gets very few metrics)
+    # test_results = engine.test(
+    #     model=model,
+    #     datamodule=datamodule,
+    # )
