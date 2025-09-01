@@ -23,15 +23,35 @@ class Metrics:
 
     Args:
         predictions (_PREDICT_OUTPUT, optional): The raw prediction output from a PyTorch Lightning Trainer.
-                                               Defaults to None.
+                                                 Defaults to None.
+        metrics_to_calculate (list[str], optional): A list of metric names to calculate. Defaults to all metrics.
     """
-    def __init__(self, predictions: _PREDICT_OUTPUT = None):
+    def __init__(self, predictions: _PREDICT_OUTPUT = None, metrics_to_calculate: list[str] = None):
         self.predictions = predictions
         self.gt_labels = None
         self.pred_labels = None
         self.gt_masks = None
         self.pred_masks = None
         self.pred_scores = None
+
+        self.available_metrics = {
+            "TP": self._calc_tp, "TN": self._calc_tn, "FP": self._calc_fp, "FN": self._calc_fn,
+            "Accuracy": self._calc_accuracy, "Precision": self._calc_precision,
+            "Recall/Sensitivity": self._calc_recall, "F1 Score": self._calc_f1_score,
+            "Specificity": self._calc_specificity, "G-mean": self._calc_g_mean,
+            "Missed Alarm Rate (MAR)": self._calc_mar, "False Alarm Rate (FAR)": self._calc_far,
+            "AUROC (Image-level)": self._calc_auroc,
+            "Pixel-level IoU": self._calc_iou, "Pixel-level F1 Score": self._calc_f1_seg,
+            "AUROC (Pixel-level)": self._calc_auroc_seg,
+        }
+        
+        if metrics_to_calculate is None:
+            self.metrics_to_calculate = list(self.available_metrics.keys())
+        else:
+            invalid_metrics = [m for m in metrics_to_calculate if m not in self.available_metrics]
+            if invalid_metrics:
+                raise ValueError(f"Invalid metrics requested: {invalid_metrics}. Available metrics are: {list(self.available_metrics.keys())}")
+            self.metrics_to_calculate = metrics_to_calculate
 
         if self.predictions is not None:
             self._aggregate_predictions()
@@ -58,19 +78,56 @@ class Metrics:
         self.pred_scores = torch.cat(all_pred_scores)
 
     @classmethod
-    def from_pickle(cls, prediction_path: Path):
+    def from_pickle(cls, prediction_path: Path, metrics_to_calculate: list[str] = None):
         """
         Creates a Metrics instance by reading predictions from a pickle file.
 
         Args:
             prediction_path (Path): The path to the pickle file containing the predictions.
+            metrics_to_calculate (list[str], optional): A list of metric names to calculate.
 
         Returns:
             Metrics: An instance of the class with loaded predictions.
         """
         with open(prediction_path, "rb") as f:
             predictions = pickle.load(f)
-        return cls(predictions)
+        return cls(predictions, metrics_to_calculate)
+
+    # Helper methods for calculating each metric
+    def _calc_conf_matrix(self):
+        if not hasattr(self, '_confmat'):
+            self._confmat = BinaryConfusionMatrix()(self.pred_labels, self.gt_labels)
+        return self._confmat.flatten().tolist()
+    
+    def _calc_tp(self): return self._calc_conf_matrix()[3]
+    def _calc_tn(self): return self._calc_conf_matrix()[0]
+    def _calc_fp(self): return self._calc_conf_matrix()[1]
+    def _calc_fn(self): return self._calc_conf_matrix()[2]
+
+    def _calc_accuracy(self): return BinaryAccuracy()(self.pred_labels, self.gt_labels).item()
+    def _calc_precision(self): return BinaryPrecision()(self.pred_labels, self.gt_labels).item()
+    def _calc_recall(self): return BinaryRecall()(self.pred_labels, self.gt_labels).item()
+    def _calc_f1_score(self): return BinaryF1Score()(self.pred_labels, self.gt_labels).item()
+    def _calc_specificity(self): return BinarySpecificity()(self.pred_labels, self.gt_labels).item()
+    def _calc_g_mean(self):
+        recall = self._calc_recall()
+        specificity = self._calc_specificity()
+        return sqrt(recall * specificity) if recall > 0 and specificity > 0 else 0
+    def _calc_mar(self): return 1 - self._calc_recall()
+    def _calc_far(self): return 1 - self._calc_specificity()
+    def _calc_auroc(self): return BinaryAUROC()(self.pred_scores, self.gt_labels).item()
+    def _calc_iou(self):
+        gt_masks_flat = self.gt_masks.view(-1)
+        pred_masks_flat = self.pred_masks.view(-1)
+        return BinaryJaccardIndex()(pred_masks_flat, gt_masks_flat.long()).item()
+    def _calc_f1_seg(self):
+        gt_masks_flat = self.gt_masks.view(-1)
+        pred_masks_flat = self.pred_masks.view(-1)
+        return BinaryF1Score()(pred_masks_flat, gt_masks_flat.long()).item()
+    def _calc_auroc_seg(self):
+        gt_masks_flat = self.gt_masks.view(-1)
+        pred_masks_flat = self.pred_masks.view(-1)
+        return BinaryAUROC()(pred_masks_flat, gt_masks_flat.long()).item()
 
     def get_all_metrics(self) -> dict:
         """
@@ -82,52 +139,14 @@ class Metrics:
         if self.predictions is None:
             raise ValueError("Predictions are not loaded. Use from_pickle() or provide predictions to the constructor.")
 
-        # Calculate confusion matrix components
-        confmat = BinaryConfusionMatrix()(self.pred_labels, self.gt_labels)
-        tn, fp, fn, tp = confmat.flatten().tolist()
+        metrics = {}
+        for metric_name in self.metrics_to_calculate:
+            if metric_name in self.available_metrics:
+                try:
+                    metrics[metric_name] = self.available_metrics[metric_name]()
+                except Exception as e:
+                    metrics[metric_name] = f"Error: {e}"
         
-        # Calculate classification metrics
-        accuracy = BinaryAccuracy()(self.pred_labels, self.gt_labels).item()
-        f1_score = BinaryF1Score()(self.pred_labels, self.gt_labels).item()
-        auroc = BinaryAUROC()(self.pred_scores, self.gt_labels).item()
-        precision = BinaryPrecision()(self.pred_labels, self.gt_labels).item()
-        recall = BinaryRecall()(self.pred_labels, self.gt_labels).item()
-        specificity = BinarySpecificity()(self.pred_labels, self.gt_labels).item()
-        
-        # Calculate derived metrics
-        g_mean = sqrt(recall * specificity) if recall > 0 and specificity > 0 else 0
-        mar = 1 - recall
-        far = 1 - specificity
-
-        # Calculate segmentation metrics
-        gt_masks_flat = self.gt_masks.view(-1)
-        pred_masks_flat = self.pred_masks.view(-1)
-        iou = BinaryJaccardIndex()(pred_masks_flat, gt_masks_flat.long()).item()
-        f1_seg = BinaryF1Score()(pred_masks_flat, gt_masks_flat.long()).item()
-        auroc_seg = BinaryAUROC()(pred_masks_flat, gt_masks_flat.long()).item()
-        
-        metrics = {
-            "classification": {
-                "TP": tp,
-                "TN": tn,
-                "FP": fp,
-                "FN": fn,
-                "Accuracy": accuracy,
-                "Precision": precision,
-                "Recall/Sensitivity": recall,
-                "F1 Score": f1_score,
-                "Specificity": specificity,
-                "G-mean": g_mean,
-                "Missed Alarm Rate (MAR)": mar,
-                "False Alarm Rate (FAR)": far,
-                "AUROC (Image-level)": auroc,
-            },
-            "segmentation": {
-                "Pixel-level IoU": iou,
-                "Pixel-level F1 Score": f1_seg,
-                "AUROC (Pixel-level)": auroc_seg,
-            }
-        }
         return metrics
 
     def save_all(self, output_dir: str = "."):
@@ -148,16 +167,11 @@ class Metrics:
 
         # Save metrics to a text file
         with open(output_path / 'metrics.txt', 'w') as f:
-            f.write("--- Classification Metrics ---\n")
-            for key, value in metrics["classification"].items():
+            for key, value in metrics.items():
                 if isinstance(value, (int, float)):
                     f.write(f"{key}: {value:.4f}\n")
                 else:
                     f.write(f"{key}: {value}\n")
-            
-            f.write("\n--- Segmentation Metrics ---\n")
-            for key, value in metrics["segmentation"].items():
-                f.write(f"{key}: {value:.4f}\n")
         
         # Save LaTeX table to a .tex file
         latex_table = self._to_latex_table_single_run()
@@ -168,7 +182,7 @@ class Metrics:
         confmat = BinaryConfusionMatrix()(self.pred_labels, self.gt_labels)
         plt.figure(figsize=(8, 6))
         sns.heatmap(confmat.numpy(), annot=True, fmt='d', cmap='Blues',
-                    xticklabels=['Normal', 'Anomaly'], yticklabels=['Normal', 'Anomaly'])
+                     xticklabels=['Normal', 'Anomaly'], yticklabels=['Normal', 'Anomaly'])
         plt.title('Confusion Matrix')
         plt.xlabel('Predicted Label')
         plt.ylabel('True Label')
@@ -214,66 +228,24 @@ class Metrics:
         """
         metrics = self.get_all_metrics()
         
-        # Classification Metrics
-        classification_metrics = metrics["classification"]
-        classification_header = ["Metric", "Value"]
-        classification_rows = [
-            ["True Positives", f"${classification_metrics['TP']}$"],
-            ["True Negatives", f"${classification_metrics['TN']}$"],
-            ["False Positives", f"${classification_metrics['FP']}$"],
-            ["False Negatives", f"${classification_metrics['FN']}$"],
-            ["Accuracy", f"${classification_metrics['Accuracy']:.4f}$"],
-            ["Precision", f"${classification_metrics['Precision']:.4f}$"],
-            ["Recall / Sensitivity", f"${classification_metrics['Recall/Sensitivity']:.4f}$"],
-            ["F1 Score", f"${classification_metrics['F1 Score']:.4f}$"],
-            ["Specificity", f"${classification_metrics['Specificity']:.4f}$"],
-            ["G-mean", f"${classification_metrics['G-mean']:.4f}$"],
-            ["Missed Alarm Rate (MAR)", f"${classification_metrics['Missed Alarm Rate (MAR)']:.4f}$"],
-            ["False Alarm Rate (FAR)", f"${classification_metrics['False Alarm Rate (FAR)']:.4f}$"],
-            ["AUROC (Image-level)", f"${classification_metrics['AUROC (Image-level)']:.4f}$"],
-        ]
-
-        # Segmentation Metrics
-        segmentation_metrics = metrics["segmentation"]
-        segmentation_header = ["Metric", "Value"]
-        segmentation_rows = [
-            ["Pixel-level IoU", f"${segmentation_metrics['Pixel-level IoU']:.4f}$"],
-            ["Pixel-level F1 Score", f"${segmentation_metrics['Pixel-level F1 Score']:.4f}$"],
-            ["AUROC (Pixel-level)", f"${segmentation_metrics['AUROC (Pixel-level)']:.4f}$"],
-        ]
-
-        # Build the LaTeX string
-        latex_str = ""
+        latex_str = "\\begin{table}[h!]\n"
+        latex_str += "\\centering\n"
+        latex_str += "\\begin{tabular}{|l|l|}\n"
+        latex_str += "\\hline\n"
+        latex_str += "Metric & Value \\\\\n"
+        latex_str += "\\hline\n"
         
-        # Classification Table
-        latex_str += "\\begin{table}[h!]\n"
-        latex_str += "\\centering\n"
-        latex_str += "\\begin{tabular}{|l|l|}\n"
-        latex_str += "\\hline\n"
-        latex_str += f"{' & '.join(classification_header)} \\\\\n"
-        latex_str += "\\hline\n"
-        for row in classification_rows:
-            latex_str += f"{' & '.join(row)} \\\\\n"
+        for metric_name, value in metrics.items():
+            display_name = self._get_table_rows().get(metric_name, metric_name)
+            if isinstance(value, float):
+                latex_str += f"{display_name} & ${value:.4f}$ \\\\\n"
+            else:
+                latex_str += f"{display_name} & {value} \\\\\n"
+        
         latex_str += "\\hline\n"
         latex_str += "\\end{tabular}\n"
-        latex_str += "\\caption{Classification Metrics}\n"
-        latex_str += "\\label{tab:classification_metrics}\n"
-        latex_str += "\\end{table}\n"
-        latex_str += "\n"
-
-        # Segmentation Table
-        latex_str += "\\begin{table}[h!]\n"
-        latex_str += "\\centering\n"
-        latex_str += "\\begin{tabular}{|l|l|}\n"
-        latex_str += "\\hline\n"
-        latex_str += f"{' & '.join(segmentation_header)} \\\\\n"
-        latex_str += "\\hline\n"
-        for row in segmentation_rows:
-            latex_str += f"{' & '.join(row)} \\\\\n"
-        latex_str += "\\hline\n"
-        latex_str += "\\end{tabular}\n"
-        latex_str += "\\caption{Segmentation Metrics}\n"
-        latex_str += "\\label{tab:segmentation_metrics}\n"
+        latex_str += "\\caption{Metrics for a Single Run}\n"
+        latex_str += "\\label{tab:metrics_single_run}\n"
         latex_str += "\\end{table}\n"
         
         return latex_str
@@ -301,49 +273,44 @@ class Metrics:
             return val1 > val2
         
     @classmethod
-    def compare_multiple_runs(cls, runs: dict[str, "Metrics"]) -> str:
+    def compare_multiple_runs(cls, runs_data: dict[str, "Metrics"]) -> str:
         """
         Generates a single LaTeX table comparing multiple runs, with the best value bolded.
         
         Args:
-            runs (dict[str, Metrics]): A dictionary where keys are run names and values are Metrics objects.
+            runs_data (dict[str, "Metrics"]): A dictionary where keys are run names and values are Metrics objects.
 
         Returns:
             str: The LaTeX table code as a string.
         """
-        if not runs:
+        if not runs_data:
             return ""
 
-        run_names = list(runs.keys())
-        all_metrics_data = {name: run.get_all_metrics() for name, run in runs.items()}
+        run_names = list(runs_data.keys())
+        first_run_metrics = next(iter(runs_data.values())).get_all_metrics()
+        metrics_to_compare = first_run_metrics.keys()
+        
+        all_metrics_data = {name: run.get_all_metrics() for name, run in runs_data.items()}
         
         table_rows = cls._get_table_rows()
         
         # Determine best values for each metric across all runs
         best_values = {}
-        for metric_key in table_rows.keys():
-            metric_values = []
-            
-            # Find the value for each run
-            for run_data in all_metrics_data.values():
-                val = None
-                if metric_key in run_data["classification"]:
-                    val = run_data["classification"][metric_key]
-                elif metric_key in run_data["segmentation"]:
-                    val = run_data["segmentation"][metric_key]
-                metric_values.append(val)
+        for metric_key in metrics_to_compare:
+            metric_values = [run_data.get(metric_key) for run_data in all_metrics_data.values()]
             
             # Find the best value
-            best_val = metric_values[0]
-            for val in metric_values[1:]:
-                if val is not None and cls._is_better(metric_key, val, best_val):
-                    best_val = val
+            best_val = None
+            for val in metric_values:
+                if val is not None:
+                    if best_val is None or cls._is_better(metric_key, val, best_val):
+                        best_val = val
             best_values[metric_key] = best_val
 
         # Build the LaTeX string
         latex_str = "\\begin{table}[h!]\n"
         latex_str += "\\centering\n"
-        latex_str += "\\begin{tabular}{|l|" + "l|" * len(run_names) + "}\n"
+        latex_str += "\\begin{tabular}{|l|" + "|l" * len(run_names) + "|}\n"
         latex_str += "\\hline\n"
         
         # Header row
@@ -352,20 +319,19 @@ class Metrics:
         latex_str += "\\hline\n"
         
         # Metric rows
-        for metric_key, display_name in table_rows.items():
+        for metric_key in metrics_to_compare:
+            display_name = table_rows.get(metric_key, metric_key)
             row_values = []
             for run_name in run_names:
-                run_data = all_metrics_data[run_name]
-                val = None
-                if metric_key in run_data["classification"]:
-                    val = run_data["classification"][metric_key]
-                elif metric_key in run_data["segmentation"]:
-                    val = run_data["segmentation"][metric_key]
+                val = all_metrics_data[run_name].get(metric_key)
                 
-                # Format value and bold if it's the best
-                formatted_val = f"${val:.4f}$" if isinstance(val, float) else f"${val}$"
-                if val == best_values[metric_key]:
-                    formatted_val = f"\\textbf{{{formatted_val}}}"
+                if val is None:
+                    formatted_val = "N/A"
+                else:
+                    # Format value and bold if it's the best
+                    formatted_val = f"${val:.4f}$" if isinstance(val, float) else f"${val}$"
+                    if val == best_values.get(metric_key):
+                        formatted_val = f"\\textbf{{{formatted_val}}}"
                 row_values.append(formatted_val)
             
             latex_str += f"{display_name} & " + " & ".join(row_values) + " \\\\\n"
@@ -380,17 +346,18 @@ class Metrics:
 
 def example():
     try:
-        run1 = Metrics.from_pickle(Path("results/run1_predictions.pkl"))
-        run2 = Metrics.from_pickle(Path("results/run2_predictions.pkl"))
+        # Example 1: Use `metrics_to_calculate` to select specific metrics
+        run1 = Metrics.from_pickle(Path("results/run1_predictions.pkl"), metrics_to_calculate=["Accuracy", "F1 Score", "Pixel-level IoU"])
+        run2 = Metrics.from_pickle(Path("results/run2_predictions.pkl"), metrics_to_calculate=["AUROC (Image-level)", "Recall/Sensitivity", "Pixel-level F1 Score"])
         
         # Save metrics and plots for a single run
         run1.save_all(output_dir="run1_output")
         print("Metrics and plots for Run 1 saved to run1_output/")
 
-        # Compare multiple runs
+        # Example 2: Pass in a dictionary with names and data for comparison
         runs_to_compare = {
-            "Run 1": run1,
-            "Run 2": run2,
+            "Model A (Limited Metrics)": run1,
+            "Model B (Other Metrics)": run2,
         }
         comparison_table = Metrics.compare_multiple_runs(runs_to_compare)
         print("\n--- Comparison LaTeX Table ---\n")
