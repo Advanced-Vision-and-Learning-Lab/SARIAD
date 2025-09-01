@@ -16,6 +16,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.metrics import roc_curve, auc, precision_recall_curve
 from lightning.pytorch.utilities.types import _PREDICT_OUTPUT
+import numpy as np
 
 class Metrics:
     """
@@ -273,12 +274,13 @@ class Metrics:
             return val1 > val2
         
     @classmethod
-    def compare_multiple_runs(cls, runs_data: dict[str, "Metrics"]) -> str:
+    def compare_multiple_runs(cls, runs_data: dict[str, "Metrics" | list]) -> str:
         """
         Generates a single LaTeX table comparing multiple runs, with the best value bolded.
         
         Args:
-            runs_data (dict[str, "Metrics"]): A dictionary where keys are run names and values are Metrics objects.
+            runs_data (dict[str, "Metrics" | list]): A dictionary where keys are run names and values are either
+                                                      a single Metrics object or a list of Metrics objects.
 
         Returns:
             str: The LaTeX table code as a string.
@@ -287,19 +289,33 @@ class Metrics:
             return ""
 
         run_names = list(runs_data.keys())
-        first_run_metrics = next(iter(runs_data.values())).get_all_metrics()
+        processed_metrics_data = {}
+        for name, data in runs_data.items():
+            if isinstance(data, list):
+                # Calculate average and std dev for a list of runs
+                all_run_metrics = [run.get_all_metrics() for run in data]
+                avg_metrics = {}
+                std_dev_metrics = {}
+                for metric_key in next(iter(all_run_metrics)).keys():
+                    values = [m.get(metric_key) for m in all_run_metrics if isinstance(m.get(metric_key), (int, float))]
+                    if values:
+                        avg_metrics[metric_key] = np.mean(values)
+                        std_dev_metrics[metric_key] = np.std(values)
+                processed_metrics_data[name] = (avg_metrics, std_dev_metrics)
+            else:
+                # Get metrics for a single run
+                processed_metrics_data[name] = (data.get_all_metrics(), None)
+
+        first_run_metrics = next(iter(processed_metrics_data.values()))[0]
         metrics_to_compare = first_run_metrics.keys()
-        
-        all_metrics_data = {name: run.get_all_metrics() for name, run in runs_data.items()}
         
         table_rows = cls._get_table_rows()
         
-        # Determine best values for each metric across all runs
+        # Determine best average values for each metric across all runs
         best_values = {}
         for metric_key in metrics_to_compare:
-            metric_values = [run_data.get(metric_key) for run_data in all_metrics_data.values()]
+            metric_values = [processed_metrics_data[name][0].get(metric_key) for name in run_names]
             
-            # Find the best value
             best_val = None
             for val in metric_values:
                 if val is not None:
@@ -323,13 +339,17 @@ class Metrics:
             display_name = table_rows.get(metric_key, metric_key)
             row_values = []
             for run_name in run_names:
-                val = all_metrics_data[run_name].get(metric_key)
+                avg_metrics, std_dev_metrics = processed_metrics_data[run_name]
+                val = avg_metrics.get(metric_key)
                 
                 if val is None:
                     formatted_val = "N/A"
                 else:
-                    # Format value and bold if it's the best
-                    formatted_val = f"${val:.4f}$" if isinstance(val, float) else f"${val}$"
+                    # Format value, include std dev if available, and bold if it's the best
+                    formatted_val = f"${val:.4f}$"
+                    if std_dev_metrics and std_dev_metrics.get(metric_key) is not None:
+                         formatted_val = f"${val:.4f} \pm {std_dev_metrics.get(metric_key):.4f}$"
+
                     if val == best_values.get(metric_key):
                         formatted_val = f"\\textbf{{{formatted_val}}}"
                 row_values.append(formatted_val)
@@ -346,24 +366,30 @@ class Metrics:
 
 def example():
     try:
-        # Example 1: Use `metrics_to_calculate` to select specific metrics
-        run1 = Metrics.from_pickle(Path("results/run1_predictions.pkl"), metrics_to_calculate=["Accuracy", "F1 Score", "Pixel-level IoU"])
-        run2 = Metrics.from_pickle(Path("results/run2_predictions.pkl"), metrics_to_calculate=["AUROC (Image-level)", "Recall/Sensitivity", "Pixel-level F1 Score"])
-        
-        # Save metrics and plots for a single run
+        # Example 1: A single run
+        run1 = Metrics.from_pickle(Path("results/run1_predictions.pkl"))
         run1.save_all(output_dir="run1_output")
         print("Metrics and plots for Run 1 saved to run1_output/")
 
-        # Example 2: Pass in a dictionary with names and data for comparison
+        # Example 2: A list of runs for one model to show average and std dev
+        run_list_A = [
+            Metrics.from_pickle(Path("results/run_A_1.pkl")),
+            Metrics.from_pickle(Path("results/run_A_2.pkl")),
+            Metrics.from_pickle(Path("results/run_A_3.pkl")),
+        ]
+        
+        # Example 3: A single run for another model
+        run_B = Metrics.from_pickle(Path("results/run_B_1.pkl"))
+
         runs_to_compare = {
-            "Model A (Limited Metrics)": run1,
-            "Model B (Other Metrics)": run2,
+            "Model A": run_list_A,
+            "Model B": run_B,
         }
+        
         comparison_table = Metrics.compare_multiple_runs(runs_to_compare)
         print("\n--- Comparison LaTeX Table ---\n")
         print(comparison_table)
         
-        # Save the comparison table to a file
         with open("comparison_table.tex", "w") as f:
             f.write(comparison_table)
         print("\nComparison table saved to comparison_table.tex")
