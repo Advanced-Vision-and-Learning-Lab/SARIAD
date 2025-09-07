@@ -351,7 +351,7 @@ class Metrics:
                          formatted_val = f"${val:.4f} \pm {std_dev_metrics.get(metric_key):.4f}$"
 
                     if val == best_values.get(metric_key):
-                        formatted_val = f"\\textbf{{{formatted_val}}}"
+                        formatted_val = f"\\boldmath {{formatted_val}}"
                 row_values.append(formatted_val)
             
             latex_str += f"{display_name} & " + " & ".join(row_values) + " \\\\\n"
