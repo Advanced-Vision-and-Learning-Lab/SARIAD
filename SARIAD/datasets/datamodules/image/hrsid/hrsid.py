@@ -8,10 +8,10 @@ NAME = "HRSID"
 DRIVE_FILE_ID = "1idg_k6ccHMBsgvj86zCKUePIjGLUuHBs"
 
 class HRSID(Folder):
-    def __init__(self, split="train"):
+    def __init__(self, split="train", batch_size=16):
         self.split = split
-        self.train_batch_size = 1 if DEBUG else 32
-        self.eval_batch_size = 1 if DEBUG else 16
+        self.train_batch_size = 1 if DEBUG else batch_size
+        self.eval_batch_size = 1 if DEBUG else batch_size
         self.image_size = (800,800)
 
         fetch_dataset(NAME, drive_file_id=DRIVE_FILE_ID)
