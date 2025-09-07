@@ -1,6 +1,11 @@
 # Benchmarking suite for synthetic aperture radar imagery anomaly detection (SARIAD) algorithms
 
-![Overall Figure](./figs/overall.svg)
+<figure>
+  <img src="./figs/overall.svg" alt="Overall Figure">
+  <figcaption>
+      Figure 1: Overall figure describing the flow of SARIAD. The figure is adapted from <a href="https://arxiv.org/abs/2202.08341">Anomalib</a> for comparison.
+  </figcaption>
+</figure>
 
 ## Overview
 This package is designed for anomaly detection in Synthetic Aperture Radar (SAR) images, leveraging PyTorch Lightning and models from [Anomalib](https://anomalib.readthedocs.io/). The package is modular, allowing easy benchmarking and dataset integration.
