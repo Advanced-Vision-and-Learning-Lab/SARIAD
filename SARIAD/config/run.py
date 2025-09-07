@@ -94,7 +94,7 @@ def run_experiments(config: dict):
     """
     global_config = config.get("global", {})
     experiments_list = config.get("experiments", [])
-    benchmark_runs = global_config.get("benchmark_runs", 1)
+    benchmark_runs = config.get("benchmark_runs", 1)
     
     all_runs_data = {}
 
