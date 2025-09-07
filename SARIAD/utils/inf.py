@@ -274,7 +274,7 @@ class Metrics:
             return val1 > val2
         
     @classmethod
-    def compare_multiple_runs(cls, runs_data: dict[str, "Metrics" | list]) -> str:
+    def compare_multiple_runs(cls, runs_data: dict[str, "Metrics | list"]) -> str:
         """
         Generates a single LaTeX table comparing multiple runs, with the best value bolded.
         

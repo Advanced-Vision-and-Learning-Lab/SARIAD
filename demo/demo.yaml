@@ -10,17 +10,17 @@ output_dir: "results"
 # Each entry in this list defines a complete training and evaluation pipeline.
 experiments:
   - name: "Padim_on_MSTAR_without_preproc"
-    dataset: MSTAR
+    dataset: SSDD
     preprocessor: null
     model: Padim
 
   - name: "Padim_on_MSTAR_with_NLM_preproc"
-    dataset: MSTAR
+    dataset: SSDD
     preprocessor: NLM
     model: Padim
 
   - name: "Padim_on_MSTAR_with_MF_preproc"
-    dataset: MSTAR
+    dataset: SSDD
     preprocessor: MedianFilter
     model: Padim
 
@@ -35,28 +35,16 @@ experiments:
 
 datasets:
   MSTAR:
-    path: "data/MSTAR"
     batch_size: 32
-    num_workers: 4
   HRSID:
-    path: "data/HRSID"
     batch_size: 16
-    num_workers: 2
   SSDD:
-    path: "data/SSDD"
     batch_size: 16
-    num_workers: 2
 
 models:
-  Padim:
-    input_size: [256, 256]
-  SARATRX:
-    input_size: [512, 512]
+  Padim: null
     # Add other model-specific hyperparameters here.
     
 preprocessors:
-  NLM:
-    # Preprocessor-specific hyperparameters
-    h: 10
-  MedianFilter:
-    kernel_size: 3
+  NLM: null
+  MedianFilter: null
