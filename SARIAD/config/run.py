@@ -94,16 +94,17 @@ def run_experiments(config: dict):
     """
     global_config = config.get("global", {})
     experiments_list = config.get("experiments", [])
-    benchmark_runs = config.get("benchmark_runs", 1)
     
     all_runs_data = {}
 
     for experiment in experiments_list:
         exp_name = experiment["name"]
-        print(f"\n--- Starting experiment group: {exp_name} (x{benchmark_runs} runs) ---")
+        # Get the number of runs for the specific experiment, default to 1 if not found
+        runs = experiment.get("runs", 1) 
+        print(f"\n--- Starting experiment group: {exp_name} (x{runs} runs) ---")
         
         individual_runs = []
-        for i in tqdm(range(benchmark_runs), desc=f"Benchmarking {exp_name}"):
+        for i in tqdm(range(runs), desc=f"Benchmarking {exp_name}"):
             try:
                 metrics = run_single_experiment(experiment, config)
                 individual_runs.append(metrics)

@@ -183,7 +183,7 @@ class Metrics:
         confmat = BinaryConfusionMatrix()(self.pred_labels, self.gt_labels)
         plt.figure(figsize=(8, 6))
         sns.heatmap(confmat.numpy(), annot=True, fmt='d', cmap='Blues',
-                     xticklabels=['Normal', 'Anomaly'], yticklabels=['Normal', 'Anomaly'])
+                    xticklabels=['Normal', 'Anomaly'], yticklabels=['Normal', 'Anomaly'])
         plt.title('Confusion Matrix')
         plt.xlabel('Predicted Label')
         plt.ylabel('True Label')
@@ -273,10 +273,74 @@ class Metrics:
         else:
             return val1 > val2
         
+    def _plot_roc_curve(self, run_data: dict[str, "Metrics | list"], output_dir: str = "."):
+        """
+        Generates and saves a single ROC curve plot, showing the average curve and variability
+        if multiple runs are provided for a single model.
+        """
+        output_path = Path(output_dir)
+        output_path.mkdir(exist_ok=True)
+        
+        plt.figure(figsize=(8, 6))
+        
+        for name, data in run_data.items():
+            if isinstance(data, list):
+                # Calculate mean ROC and standard deviation for a list of runs
+                all_fprs = []
+                all_tprs = []
+                all_aucs = []
+                
+                # We need to use a common set of false positive rates to average the true positive rates
+                mean_fpr = np.linspace(0, 1, 100)
+
+                for run in data:
+                    fpr, tpr, _ = roc_curve(run.gt_labels.cpu().numpy(), run.pred_scores.cpu().numpy())
+                    all_fprs.append(fpr)
+                    all_tprs.append(tpr)
+                    all_aucs.append(auc(fpr, tpr))
+                    
+                interp_tprs = []
+                for idx in range(len(data)):
+                    interp_tpr = np.interp(mean_fpr, all_fprs[idx], all_tprs[idx])
+                    interp_tpr[0] = 0.0
+                    interp_tprs.append(interp_tpr)
+                
+                mean_tpr = np.mean(interp_tprs, axis=0)
+                mean_tpr[-1] = 1.0
+                mean_auc = auc(mean_fpr, mean_tpr)
+                std_auc = np.std(all_aucs)
+                std_tpr = np.std(interp_tprs, axis=0)
+                
+                tprs_upper = np.minimum(mean_tpr + std_tpr, 1)
+                tprs_lower = np.maximum(mean_tpr - std_tpr, 0)
+                
+                # Plot mean ROC curve
+                plt.plot(mean_fpr, mean_tpr, lw=2, label=f'{name} (Mean AUC = {mean_auc:.2f} $\pm$ {std_auc:.2f})')
+                
+                # Plot variability area
+                plt.fill_between(mean_fpr, tprs_lower, tprs_upper, alpha=0.2, label=r"$\pm$ 1 std. dev.")
+            
+            else:
+                # Plot single ROC curve
+                fpr, tpr, _ = roc_curve(data.gt_labels.cpu().numpy(), data.pred_scores.cpu().numpy())
+                roc_auc = auc(fpr, tpr)
+                plt.plot(fpr, tpr, lw=2, label=f'{name} (AUC = {roc_auc:.2f})')
+        
+        plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--', label='Chance Level')
+        plt.xlim([0.0, 1.0])
+        plt.ylim([0.0, 1.05])
+        plt.xlabel('False Positive Rate')
+        plt.ylabel('True Positive Rate')
+        plt.title('Receiver Operating Characteristic (ROC) Curves')
+        plt.legend(loc="lower right")
+        plt.savefig(output_path / 'roc_curve_comparison.png')
+        plt.close()
+
     @classmethod
     def compare_multiple_runs(cls, runs_data: dict[str, "Metrics | list"]) -> str:
         """
-        Generates a single LaTeX table comparing multiple runs, with the best value bolded.
+        Generates a single LaTeX table comparing multiple runs, with the best value bolded,
+        and plots a combined ROC curve.
         
         Args:
             runs_data (dict[str, "Metrics" | list]): A dictionary where keys are run names and values are either
@@ -288,6 +352,10 @@ class Metrics:
         if not runs_data:
             return ""
 
+        # Plot the combined ROC curve
+        metrics_instance = cls()
+        metrics_instance._plot_roc_curve(runs_data, output_dir="comparison_output")
+
         run_names = list(runs_data.keys())
         processed_metrics_data = {}
         for name, data in runs_data.items():
@@ -296,7 +364,9 @@ class Metrics:
                 all_run_metrics = [run.get_all_metrics() for run in data]
                 avg_metrics = {}
                 std_dev_metrics = {}
-                for metric_key in next(iter(all_run_metrics)).keys():
+                # Use a stable key order from the first run's metrics
+                first_metrics_keys = next(iter(all_run_metrics)).keys() if all_run_metrics else []
+                for metric_key in first_metrics_keys:
                     values = [m.get(metric_key) for m in all_run_metrics if isinstance(m.get(metric_key), (int, float))]
                     if values:
                         avg_metrics[metric_key] = np.mean(values)
@@ -318,7 +388,7 @@ class Metrics:
             
             best_val = None
             for val in metric_values:
-                if val is not None:
+                if isinstance(val, (int, float)):
                     if best_val is None or cls._is_better(metric_key, val, best_val):
                         best_val = val
             best_values[metric_key] = best_val
@@ -348,10 +418,10 @@ class Metrics:
                     # Format value, include std dev if available, and bold if it's the best
                     formatted_val = f"${val:.4f}$"
                     if std_dev_metrics and std_dev_metrics.get(metric_key) is not None:
-                         formatted_val = f"${val:.4f} \pm {std_dev_metrics.get(metric_key):.4f}$"
+                        formatted_val = f"${val:.4f} \pm {std_dev_metrics.get(metric_key):.4f}$"
 
                     if val == best_values.get(metric_key):
-                        formatted_val = f"\\boldmath {{formatted_val}}"
+                        formatted_val = f"\\textbf{{{formatted_val}}}"
                 row_values.append(formatted_val)
             
             latex_str += f"{display_name} & " + " & ".join(row_values) + " \\\\\n"

@@ -3,35 +3,26 @@
 
 # Global settings
 seed: 42
-benchmark_runs: 3 # Number of times to repeat a run for averaging metrics. Set to 1 for a single run.
 output_dir: "results"
 
-# A list of experiment runs to perform.
-# Each entry in this list defines a complete training and evaluation pipeline.
 experiments:
   - name: "Padim_on_MSTAR_without_preproc"
     dataset: SSDD
     preprocessor: null
     model: Padim
+    runs: 2
 
   - name: "Padim_on_MSTAR_with_NLM_preproc"
     dataset: SSDD
     preprocessor: NLM
     model: Padim
+    runs: 2
 
   - name: "Padim_on_MSTAR_with_MF_preproc"
     dataset: SSDD
     preprocessor: MedianFilter
     model: Padim
-
-  # You can add more experiments here with different combinations.
-  # - name: "MedianFilter_on_SSDD"
-  #   dataset: SSDD
-  #   preprocessor: MedianFilter
-  #   model: Padim
-
-# Configuration for models, datasets, and preprocessors
-# The names here must match the `experiments` list.
+    runs: 2
 
 datasets:
   MSTAR:
@@ -43,7 +34,6 @@ datasets:
 
 models:
   Padim: null
-    # Add other model-specific hyperparameters here.
     
 preprocessors:
   NLM: null
