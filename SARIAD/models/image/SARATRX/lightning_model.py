@@ -3,6 +3,7 @@ import torch
 from lightning.pytorch.utilities.types import STEP_OUTPUT
 from anomalib.data import Batch
 from anomalib.models.components import AnomalibModule
+from anomalib import LearningType
 from SARIAD.models.image.SARATRX.SARATRX.pretraining.models.models_hivit_mae import HiViTMaskedAutoencoder
 from SARIAD.models.image.SARATRX.SARATRX.pretraining.models.models_hivit import HiViT
 from SARIAD.models.image.SARATRX.SARATRX.pretraining.util.pos_embed import interpolate_pos_embed
@@ -49,8 +50,11 @@ class SARATRX(AnomalibModule):
         # interpolate_pos_embed(self.model, checkpoint_model)
 
         msg = self.model.load_state_dict(checkpoint, strict=False)
-        print(msg)
-        print(self.model)
+        model_without_ddp = self.model
+        n_parameters = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
+
+        print("Model = %s" % str(model_without_ddp))
+        print('number of params (M): %.2f' % (n_parameters / 1.e6))
 
     def config_pre_processor(self):
         return PostProcessor()
@@ -60,18 +64,23 @@ class SARATRX(AnomalibModule):
 
     def training_step(self, batch: Batch, *args, **kwargs) -> None:
         del args, kwargs  # These variables are not used.
-        output = self.model(batch.image)
-        self.outputs.append(output)
+
+        _ = self.model(batch.image)
+
+        # Return a dummy loss tensor
+        return torch.tensor(0.0, requires_grad=True, device=self.device)
 
     def configure_optimizers(self):
         pass
 
     def validation_step(self, batch: Batch, *args, **kwargs) -> STEP_OUTPUT:
         del args, kwargs  # These variables are not used.
-        pass
+
+        predictions = self.model(batch.image)
+        return batch.update(**predictions._asdict())
 
     def learning_type(self):
-        pass
+        return LearningType.ONE_CLASS
 
     def trainer_arguments(self):
         pass
