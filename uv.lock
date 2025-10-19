@@ -31,6 +31,14 @@ wheels = [
 ]
 
 [[package]]
+name = "aenum"
+version = "3.1.16"
+source = { registry = "https://pypi.org/simple" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e3/52/6ad8f63ec8da1bf40f96996d25d5b650fdd38f5975f8c813732c47388f18/aenum-3.1.16-py3-none-any.whl", hash = "sha256:9035092855a98e41b66e3d0998bd7b96280e85ceb3a04cc035636138a1943eaf", size = 165627, upload-time = "2025-04-25T03:17:58.89Z" },
+]
+
+[[package]]
 name = "aiofiles"
 version = "24.1.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1000,6 +1008,20 @@ wheels = [
 ]
 
 [[package]]
+name = "hydra-core"
+version = "1.3.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "antlr4-python3-runtime" },
+    { name = "omegaconf" },
+    { name = "packaging" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/6d/8e/07e42bc434a847154083b315779b0a81d567154504624e181caf2c71cd98/hydra-core-1.3.2.tar.gz", hash = "sha256:8a878ed67216997c3e9d88a8e72e7b4767e81af37afb4ea3334b269a4390a824", size = 3263494, upload-time = "2023-02-23T18:33:43.03Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c6/50/e0edd38dcd63fb26a8547f13d28f7a008bc4a3fd4eb4ff030673f22ad41a/hydra_core-1.3.2-py3-none-any.whl", hash = "sha256:fa0238a9e31df3373b35b0bfb672c34cc92718d21f81311d8996a16de1141d8b", size = 154547, upload-time = "2023-02-23T18:33:40.801Z" },
+]
+
+[[package]]
 name = "idna"
 version = "3.10"
 source = { registry = "https://pypi.org/simple" }
@@ -1258,6 +1280,44 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/6f/6b/c875b30a1ba490860c93da4cabf479e03f584eba06fe5963f6f6644653d8/lazy_loader-0.4.tar.gz", hash = "sha256:47c75182589b91a4e1a85a136c074285a5ad4d9f39c63e0d7fb76391c4574cd1", size = 15431, upload-time = "2024-04-05T13:03:12.261Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/83/60/d497a310bde3f01cb805196ac61b7ad6dc5dcf8dce66634dc34364b20b4f/lazy_loader-0.4-py3-none-any.whl", hash = "sha256:342aa8e14d543a154047afb4ba8ef17f5563baad3fc610d7b15b213b0f119efc", size = 12097, upload-time = "2024-04-05T13:03:10.514Z" },
+]
+
+[[package]]
+name = "lightly"
+version = "1.5.22"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "aenum" },
+    { name = "certifi" },
+    { name = "hydra-core" },
+    { name = "lightly-utils" },
+    { name = "numpy" },
+    { name = "pydantic" },
+    { name = "python-dateutil" },
+    { name = "pytorch-lightning" },
+    { name = "requests" },
+    { name = "six" },
+    { name = "torch" },
+    { name = "torchvision" },
+    { name = "tqdm" },
+    { name = "urllib3" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/ea/56/5e1762cd4d4c7587412ef13d3908fe176bd71308ad5674a84e2b11350064/lightly-1.5.22.tar.gz", hash = "sha256:7bb8939976ea5e8fabb20d049812700d51e44f6461f15510a784afd1252a3dbd", size = 411425, upload-time = "2025-07-22T14:40:37.804Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d8/92/8d1ecf4f23cfa7e72fb024d1c3bab9a9c8cd1c150c571e7a2fff33d7a46a/lightly-1.5.22-py3-none-any.whl", hash = "sha256:58694433dd85ec371cb532dba3fea9465009d36e4afac67e53dbf464dba69e2a", size = 859333, upload-time = "2025-07-22T14:40:36.2Z" },
+]
+
+[[package]]
+name = "lightly-utils"
+version = "0.0.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+    { name = "pillow" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/12/3a/fc1c006440cef68bd618056633aea5ae50c1ceee1b8eeb25e101df8e6ded/lightly_utils-0.0.2.tar.gz", hash = "sha256:a351f3d600f0ab08d12f294725c6457ae000645cb0a1083d0845cb196ccfe698", size = 32683, upload-time = "2021-07-08T13:14:43.134Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/62/11/ff55b3f54440e604a589ae1fe6950bc1bf49b5aca1842bf4b3ab0b6f65cd/lightly_utils-0.0.2-py3-none-any.whl", hash = "sha256:57eaa99044bbdab428cc67cd336491096cd406c21b50f15ce51150c1a10843e9", size = 6374, upload-time = "2021-07-08T13:14:41.992Z" },
 ]
 
 [[package]]
@@ -2715,6 +2775,7 @@ dependencies = [
     { name = "gdown" },
     { name = "kagglehub" },
     { name = "kornia" },
+    { name = "lightly" },
     { name = "lightning" },
     { name = "linkify" },
     { name = "linkify-it-py" },
@@ -2751,6 +2812,7 @@ requires-dist = [
     { name = "gdown", specifier = ">=5.2.0" },
     { name = "kagglehub", specifier = ">=0.3.12" },
     { name = "kornia", specifier = ">=0.8.1" },
+    { name = "lightly", specifier = ">=1.5.22" },
     { name = "lightning", specifier = ">=2.5.1.post0" },
     { name = "linkify", specifier = ">=1.4" },
     { name = "linkify-it-py", specifier = ">=2.0.3" },

@@ -2,6 +2,7 @@ from anomalib.engine import Engine
 from anomalib.models import Padim
 
 import torch
+torch.set_float32_matmul_precision('medium')
 
 if __name__ == '__main__':
     # load a SAR datamodule
@@ -20,10 +21,10 @@ if __name__ == '__main__':
     print("Batch Image Shape", train_data.image.shape)
 
     # load a model
-    model = Padim()
+    # model = Padim()
 
-    # from SARIAD.models import SARATRX
-    # model = SARATRX()
+    from SARIAD.models import SARATRX
+    model = SARATRX()
 
     # load a SAR pre processors
     # from SARIAD.pre_processing import SARCNN
@@ -35,7 +36,7 @@ if __name__ == '__main__':
     # from SARIAD.pre_processing import MedianFilter
     # model = Padim(pre_processor=MedianFilter(model=Padim))
 
-    engine = Engine()
+    engine = Engine(max_epochs=30)
     engine.fit(model=model, datamodule=datamodule)
 
     torch.cuda.empty_cache()
