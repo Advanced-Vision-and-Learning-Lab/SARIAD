@@ -36,7 +36,7 @@ if __name__ == '__main__':
     # from SARIAD.pre_processing import MedianFilter
     # model = Padim(pre_processor=MedianFilter(model=Padim))
 
-    engine = Engine(max_epochs=30)
+    engine = Engine(max_epochs=20)
     engine.fit(model=model, datamodule=datamodule)
 
     torch.cuda.empty_cache()

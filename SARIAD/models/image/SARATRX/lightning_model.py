@@ -1,217 +1,249 @@
+"""SARATRX: SAR Anomaly Detection using Hierarchical Vision Transformer.
+
+This model implements the SARATRX algorithm for anomaly detection using a
+Hierarchical Vision Transformer (HiViT) with Masked Autoencoding (MAE).
+
+The model learns to reconstruct normal patterns from grayscale SAR images.
+During inference, reconstruction errors indicate anomalies.
+
+Example:
+    >>> from anomalib.data import MVTecAD
+    >>> from SARIAD.models.image.SARATRX import SARATRX
+    >>> from anomalib.engine import Engine
+
+    >>> # Initialize model and data
+    >>> datamodule = MVTecAD()
+    >>> model = SARATRX()
+
+    >>> # Train using the Engine
+    >>> engine = Engine()
+    >>> engine.fit(model=model, datamodule=datamodule)
+
+    >>> # Get predictions
+    >>> predictions = engine.predict(model=model, datamodule=datamodule)
+"""
+
 import logging
 import torch
 from lightning.pytorch.utilities.types import STEP_OUTPUT
+from torch import nn
+from torchvision.transforms.v2 import Compose, Resize, Grayscale
+
 from anomalib.data import Batch
 from anomalib.models.components import AnomalibModule
 from anomalib import LearningType
-from SARIAD.models.image.SARATRX.SARATRX.pretraining.models.models_hivit_mae import HiViTMaskedAutoencoder
-from SARIAD.models.image.SARATRX.SARATRX.pretraining.models.models_hivit import HiViT
-from SARIAD.models.image.SARATRX.SARATRX.pretraining.util.lr_decay import param_groups_lrd
-from SARIAD.models.image.SARATRX.SARATRX.pretraining.util.misc import NativeScalerWithGradNormCount as NativeScaler
-from SARIAD.models.image.SARATRX.SARATRX.pretraining.util.pos_embed import interpolate_pos_embed
-from SARIAD.utils.blob_utils import fetch_blob
 from anomalib.post_processing import PostProcessor
 from anomalib.pre_processing import PreProcessor
-from torchvision.transforms.v2 import Compose, Resize, Grayscale
+from anomalib.metrics import Evaluator
+from anomalib.visualization import Visualizer
+from SARIAD.models.image.SARATRX.SARATRX.pretraining.util.lr_decay import param_groups_lrd
+from SARIAD.models.image.SARATRX.SARATRX.pretraining.util.misc import NativeScalerWithGradNormCount as NativeScaler
+
+from .torch_model import SARATRXModel
 
 logger = logging.getLogger(__name__)
 
+__all__ = ["SARATRX"]
+
+
 class SARATRX(AnomalibModule):
-    def __init__(self, pre_processor=True, post_processor=True, num_classes=2):
-        transform = Compose([
-            Resize((224, 224)),
-            Grayscale(num_output_channels=1),
-        ])
-        super().__init__(PreProcessor(transform), post_processor)
+    """SARATRX: SAR Anomaly Detection using HiViT-MAE.
 
-        self.trainer_arguments = {
-            "accelerator": "gpu",
-            "devices": 1,
-            "check_val_every_n_epoch": 1,
-            "callbacks": [],
-            "logger": True,
-        }
-        self.automatic_optimization = False
+    This model uses a Hierarchical Vision Transformer with Masked Autoencoding
+    for anomaly detection in SAR imagery. It learns to reconstruct masked
+    portions of normal images, and uses reconstruction error as an anomaly signal.
 
-        self.model = HiViTMaskedAutoencoder(hifeat=True)
-        print(self.model)
+    Args:
+        checkpoint_path (str | None, optional): Path to pretrained HiViT-MAE
+            checkpoint. If None, downloads default checkpoint. Defaults to None.
+        mask_ratio (float, optional): Ratio of patches to mask during training.
+            Defaults to 0.75.
+        learning_rate (float, optional): Base learning rate. Defaults to 1e-3.
+        weight_decay (float, optional): Weight decay for optimizer.
+            Defaults to 0.05.
+        layer_decay (float, optional): Layer-wise learning rate decay factor.
+            Defaults to 0.75.
+        pre_processor (PreProcessor | bool, optional): Preprocessor to apply on
+            input data. Defaults to True.
+        post_processor (PostProcessor | bool, optional): Post processor to apply
+            on model outputs. Defaults to True.
+        evaluator (Evaluator | bool, optional): Evaluator for computing metrics.
+            Defaults to True.
+        visualizer (Visualizer | bool, optional): Visualizer for generating
+            result images. Defaults to True.
 
-        fetch_blob("mae_hivit_base_1600ep.pth", drive_file_id="1VZQz4buhlepZ5akTcEvrA3a_nxsQZ8eQ", is_archive=False);
-        checkpoint = torch.load("mae_hivit_base_1600ep.pth", map_location='cpu')
-        print(checkpoint)
+    Example:
+        >>> from SARIAD.models.image.SARATRX import SARATRX
+        >>> model = SARATRX(learning_rate=1e-3, mask_ratio=0.75)
+        >>> # Model is ready for training with Engine
+    """
 
-        checkpoint_model = checkpoint
-        state_dict = self.model.state_dict()
-        print(len(state_dict.keys()))
-        for k in ['head.weight', 'head.bias']:
-            if k in checkpoint_model and checkpoint_model[k].shape != state_dict[k].shape:
-                print(f"Removing key {k} from pretrained checkpoint")
-                del checkpoint_model[k]
-
-        interpolate_pos_embed(self.model, checkpoint_model)
-
-        msg = self.model.load_state_dict(checkpoint, strict=False)
-        model_without_ddp = self.model
-        n_parameters = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
-
-        print("Model = %s" % str(model_without_ddp))
-        print('number of params (M): %.2f' % (n_parameters / 1.e6))
-
-        eff_batch_size = 64
+    def __init__(
+        self,
+        checkpoint_path: str | None = None,
+        mask_ratio: float = 0.75,
+        learning_rate: float = 1e-3,
+        weight_decay: float = 0.05,
+        layer_decay: float = 0.75,
+        pre_processor: nn.Module | bool = True,
+        post_processor: nn.Module | bool = True,
+        evaluator: Evaluator | bool = True,
+        visualizer: Visualizer | bool = True,
+    ) -> None:
+        # Setup preprocessing transform
+        if pre_processor is True:
+            transform = Compose([
+                Resize((224, 224)),
+                Grayscale(num_output_channels=1),
+            ])
+            pre_processor = PreProcessor(transform)
         
-        blr = 1e-3
-        lr = blr * eff_batch_size / 256
-
-        print("base lr: %.2e" % (lr * 256 / eff_batch_size))
-        print("actual lr: %.2e" % lr)
-
-        print("accumulate grad iterations: %d" % 1)
-        print("effective batch size: %d" % eff_batch_size)
-
-        # build optimizer with layer-wise lr decay (lrd)
-        param_groups = param_groups_lrd(model_without_ddp, 1,
-            no_weight_decay_list=model_without_ddp.no_weight_decay(),
-            layer_decay=0.75
+        super().__init__(
+            pre_processor=pre_processor,
+            post_processor=post_processor,
+            evaluator=evaluator,
+            visualizer=visualizer,
         )
-        self.optimizer = torch.optim.AdamW(param_groups, lr=lr, betas=(0.9, 0.999))
+
+        # Model hyperparameters
+        self.learning_rate = learning_rate
+        self.weight_decay = weight_decay
+        self.layer_decay = layer_decay
+        self.mask_ratio = mask_ratio
+        
+        # Initialize model
+        self.model: SARATRXModel = SARATRXModel(
+            checkpoint_path=checkpoint_path,
+            mask_ratio=mask_ratio,
+        )
+        
+        # Manual optimization for custom training loop with loss scaler
+        self.automatic_optimization = False
         self.loss_scaler = NativeScaler()
+        
+        logger.info(f"SARATRX model initialized with learning_rate={learning_rate}, "
+                   f"mask_ratio={mask_ratio}")
 
-    def config_pre_processor(self):
-        return PostProcessor()
+    def configure_optimizers(self) -> torch.optim.Optimizer | None:
+        """Configure optimizer with layer-wise learning rate decay.
 
-    def configure_post_processor(self):
-        return PostProcessor()
+        Returns:
+            torch.optim.Optimizer | None: AdamW optimizer with layer-wise LR decay,
+                or None if using manual optimization.
+        """
+        if not self.automatic_optimization:
+            # With manual optimization, we create optimizer but don't return it
+            # Build optimizer with layer-wise lr decay (lrd)
+            param_groups = param_groups_lrd(
+                self.model.model,  # Access the inner MAE model
+                self.weight_decay,
+                no_weight_decay_list=self.model.model.no_weight_decay(),
+                layer_decay=self.layer_decay
+            )
+            
+            # Calculate effective learning rate
+            eff_batch_size = 64  # Adjust based on your batch size
+            lr = self.learning_rate * eff_batch_size / 256
+            
+            self.optimizer = torch.optim.AdamW(
+                param_groups,
+                lr=lr,
+                betas=(0.9, 0.999)
+            )
+            logger.info(f"Optimizer configured with base_lr={self.learning_rate:.2e}, "
+                       f"actual_lr={lr:.2e}")
+            return None
+        
+        # For automatic optimization (not used with current settings)
+        return torch.optim.AdamW(
+            self.parameters(),
+            lr=self.learning_rate,
+            weight_decay=self.weight_decay
+        )
 
     def training_step(self, batch: Batch, batch_idx: int) -> STEP_OUTPUT:
-        """
-        Implements the MAE training step with NativeScaler and manual optimization.
-        """
-        
-        optimizer = self.optimizer
-        optimizer.zero_grad() 
+        """Perform the training step with MAE reconstruction loss.
 
+        Args:
+            batch (Batch): Input batch containing image and metadata
+            batch_idx (int): Index of the current batch
+
+        Returns:
+            STEP_OUTPUT: Dictionary containing the loss value
+        """
+        optimizer = self.optimizer
+        optimizer.zero_grad()
+
+        # Forward pass with automatic mixed precision
         with torch.cuda.amp.autocast():
-            loss, _, _ = self.model(batch.image)  
-            
+            loss = self.model(batch.image)
+
+        # Backward pass with gradient scaling
         self.loss_scaler(
-            loss, 
-            optimizer, 
-            clip_grad=None, 
+            loss,
+            optimizer,
+            clip_grad=None,
             parameters=self.model.parameters(),
         )
 
-        self.log("train_mae_loss", loss, on_step=False, on_epoch=True, prog_bar=True, logger=True)
+        # Log metrics
+        self.log("train_loss", loss, on_step=False, on_epoch=True, 
+                prog_bar=True, logger=True)
 
         return {"loss": loss}
 
-    def configure_optimizers(self):
-        """Returns None to signal PyTorch Lightning to use Manual Optimization."""
-        return None
-
     def validation_step(self, batch: Batch, *args, **kwargs) -> STEP_OUTPUT:
-        del args, kwargs
-        # _ = self.model(batch.image)
+        """Perform a validation step.
 
-        # Return a dummy loss tensor
-        return torch.tensor(0.0, requires_grad=True, device=self.device)
+        During validation, the model generates predictions including anomaly
+        scores and maps.
 
-    def learning_type(self):
-        return LearningType.ONE_CLASS
+        Args:
+            batch (Batch): Input batch containing image and metadata
+            args: Additional arguments (unused)
+            kwargs: Additional keyword arguments (unused)
 
-    def trainer_arguments(self):
-        pass
+        Returns:
+            STEP_OUTPUT: Updated batch with predictions
+        """
+        del args, kwargs  # These variables are not used.
 
-def unpatch(x, patch_size=16):
-    h = w = 14
-    chans = 3
+        predictions = self.model(batch.image)
+        return batch.update(**predictions._asdict())
 
-    #reshape flat patches into 2D image
-    x = x.reshape(B, h, w, patch_size, patch_size, chans)
+    @property
+    def trainer_arguments(self) -> dict[str, int | float | list]:
+        """Get default trainer arguments for SARATRX.
 
-    #shape closer to pytorch (B, C, H, W)
-    x = x.permute(0, 5, 1, 3, 2, 4)  # (B, C, patch_size, H, patch_size, W)
+        Returns:
+            dict[str, Any]: Trainer arguments including:
+                - accelerator: GPU acceleration
+                - devices: Number of GPUs (1 for manual optimization)
+                - max_epochs: Number of training epochs
+                - check_val_every_n_epoch: Validation frequency
+        """
+        return {
+            "accelerator": "gpu",
+            "devices": 1,  # Manual optimization requires single device
+            "max_epochs": 20,
+            "check_val_every_n_epoch": 20,
+            "gradient_clip_val": None,  # Handled by loss_scaler
+        }
 
-    x = x.reshape(B, chans, h*patch_size, w*patch_size)
-    return x
+    @property
+    def learning_type(self) -> LearningType:
+        """Return the learning type of the model.
 
-if __name__ == "__main__":
-    import os
-    import torch
-    import torch.nn.functional as F
-    from torchvision import transforms
-    from PIL import Image
-    import matplotlib.pyplot as plt
+        Returns:
+            LearningType: Learning type (ONE_CLASS for SARATRX)
+        """
+        return LearningType.FEW_SHOT
 
-    if __name__ == "__main__":
-        # Instantiate model
-        model = SARATRX()
-        model.eval()
+    @staticmethod
+    def configure_post_processor() -> PostProcessor:
+        """Return the default post-processor for SARATRX.
 
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-        model.to(device)
-
-        transform = transforms.Compose([
-            transforms.Resize((224, 224)),
-            transforms.Grayscale(num_output_channels=1),
-            transforms.ToTensor(),
-        ])
-
-        image_dir = "imgs/"
-        result_dir = "results/"
-        os.makedirs(result_dir, exist_ok=True)
-
-        image_files = [os.path.join(image_dir, f) for f in os.listdir(image_dir)
-                       if f.lower().endswith((".jpg", ".jpeg", ".png"))]
-
-        print(f"Found {len(image_files)} images in {image_dir}")
-
-        for img_path in image_files:
-            print(f"Processing: {img_path}")
-
-            img = Image.open(img_path).convert("RGB")
-            tensor = transform(img).unsqueeze(0).to(device)
-
-            with torch.no_grad():
-                loss, pred, mask = model.model(tensor)
-
-            print(f"Loss: {loss.item():.4f}")
-
-            # reshape mask
-            B = mask.shape[0]
-            num_patches = mask.shape[1]
-            h = w = int(num_patches ** 0.5)
-            mask = mask.reshape(B, 1, h, w)
-            mask = F.interpolate(mask, size=(224, 224), mode="nearest")
-
-            # Prepare tensors
-            input_img = tensor.squeeze().cpu()
-            print(pred.shape)
-            recon_img = pred.squeeze().cpu()
-            mask = mask.squeeze().cpu()
-
-            def normalize(x):
-                return (x - x.min()) / (x.max() - x.min() + 1e-8)
-
-            input_img = normalize(input_img)
-            recon_img = unpatch(pred.cpu())
-            recon_img = recon_img.squeeze(0).permute(1, 2, 0)
-            masked_input = input_img * (1 - mask)
-
-            fig, axes = plt.subplots(1, 3, figsize=(9, 3))
-            axes[0].imshow(input_img, cmap="gray")
-            axes[0].set_title("Input")
-            axes[1].imshow(mask, cmap="gray")
-            axes[1].set_title("Mask")
-            axes[2].imshow(recon_img, cmap="gray")
-            axes[2].set_title("Prediction")
-
-            for ax in axes:
-                ax.axis("off")
-
-            plt.suptitle(f"{os.path.basename(img_path)} | Loss={loss.item():.4f}")
-            plt.tight_layout()
-
-            out_path = os.path.join(result_dir, os.path.basename(img_path).replace(".png", "_recon.png"))
-            plt.savefig(out_path, bbox_inches="tight")
-            plt.close()
-            print(f"Saved: {out_path}")
+        Returns:
+            PostProcessor: Default post-processor
+        """
+        return PostProcessor()
