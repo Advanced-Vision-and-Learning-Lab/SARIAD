@@ -4,7 +4,7 @@ from tqdm import tqdm
 
 from anomalib.data import Folder
 from SARIAD.config import DATASETS_PATH, DEBUG
-from SARIAD.utils.blob_utils import fetch_dataset
+from SARIAD.utils.blob_utils import fetch_blob
 from SARIAD.utils.img_utils import img_debug
 from SARIAD.pre_processing.SARCNN import *
 
@@ -14,34 +14,36 @@ DRIVE_FILE_ID = "1glNJUGotrbEyk43twwB9556AdngJsynZ"
 
 
 class SSDD(Folder):
-    def __init__(self, sub_dataset="PSeg_SSDD", sub_category="", split="train", batch_size=16):
+    def __init__(self, sub_dataset="PSeg_SSDD", sub_category="", split="train", batch_size=16,
+                 num_workers=8, path=None, **folder_kwargs):
         self.split = split
+        self.dataset_root = path or os.path.join(DATASETS_PATH, NAME)
         self.train_batch_size = 1 if DEBUG else batch_size
         self.eval_batch_size = 1 if DEBUG else batch_size
         # self.image_size = (512, 512)
 
-        fetch_dataset(NAME, drive_file_id=DRIVE_FILE_ID, ext="rar")
-        if (not os.path.exists(os.path.join(DATASETS_PATH, NAME, sub_dataset, "train"))) \
-            or (not os.path.exists(os.path.join(DATASETS_PATH, NAME, sub_dataset, "test"))):
+        fetch_blob(self.dataset_root, drive_file_id=DRIVE_FILE_ID, ext="rar")
+        if (not os.path.exists(os.path.join(self.dataset_root, sub_dataset, "train"))) \
+            or (not os.path.exists(os.path.join(self.dataset_root, sub_dataset, "test"))):
             self.split_masks()
             self.generate_norm()
             self.restructure_dataset()
 
         super().__init__(
             name=NAME,
-            root=os.path.join(DATASETS_PATH, NAME, sub_dataset),
+            root=os.path.join(self.dataset_root, sub_dataset),
             mask_dir=f"train/masks",
             normal_dir=f"train/norm",
             abnormal_dir=f"train/anom",
             normal_test_dir=f"test/norm",
             train_batch_size=self.train_batch_size,
             eval_batch_size=self.eval_batch_size,
+            num_workers=num_workers,
+            **folder_kwargs,
         )
 
-        self.setup()
-
     def restructure_dataset(self):
-        base_root_dir = f"{DATASETS_PATH}/{NAME}/PSeg_SSDD"
+        base_root_dir = f"{self.dataset_root}/PSeg_SSDD"
         voc_style_dir = os.path.join(base_root_dir, "voc_style")
 
         target_dir = base_root_dir
@@ -97,7 +99,7 @@ class SSDD(Folder):
         print("Dataset restructuring complete.")
 
     def split_masks(self):
-        base_root_dir = f"{DATASETS_PATH}/{NAME}/PSeg_SSDD/voc_style"
+        base_root_dir = f"{self.dataset_root}/PSeg_SSDD/voc_style"
 
         source_mask_dir = os.path.join(base_root_dir, "JPEGImages_PSeg_GT_Mask")
         train_masks_dir = os.path.join(base_root_dir, "JPEGImages_PSeg_GT_Mask_train")
@@ -270,7 +272,7 @@ class SSDD(Folder):
         return np.clip(final_output_image, 0, 255).astype(image.dtype)
 
     def generate_norm(self):
-        base_root_dir = f"{DATASETS_PATH}/{NAME}/PSeg_SSDD/voc_style"
+        base_root_dir = f"{self.dataset_root}/PSeg_SSDD/voc_style"
 
         sets = {"train": "JPEGImages_train", "test": "JPEGImages_test"}
 

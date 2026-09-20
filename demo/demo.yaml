@@ -6,19 +6,19 @@ seed: 42
 output_dir: "results"
 
 experiments:
-  - name: "Padim_on_MSTAR_without_preproc"
+  - name: "Padim_on_SSDD_without_preproc"
     dataset: SSDD
     preprocessor: null
     model: Padim
     runs: 2
 
-  - name: "Padim_on_MSTAR_with_NLM_preproc"
+  - name: "Padim_on_SSDD_with_NLM_preproc"
     dataset: SSDD
     preprocessor: NLM
     model: Padim
     runs: 2
 
-  - name: "Padim_on_MSTAR_with_MF_preproc"
+  - name: "Padim_on_SSDD_with_MF_preproc"
     dataset: SSDD
     preprocessor: MedianFilter
     model: Padim

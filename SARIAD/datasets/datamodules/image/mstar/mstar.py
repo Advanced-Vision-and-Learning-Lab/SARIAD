@@ -1,5 +1,5 @@
 from anomalib.data import Folder
-from SARIAD.utils.blob_utils import fetch_dataset
+from SARIAD.utils.blob_utils import fetch_blob
 from SARIAD.config import PROJECT_ROOT, DATASETS_PATH, DEBUG
 
 import json, glob, os, cv2
@@ -12,9 +12,20 @@ NAME = "PLMSTAR"
 DRIVE_FILE_ID = "1TT3SrDMW8ICcknoAXXZLLCLk0X6L1nAL"
 
 class MSTAR(Folder):
-    def __init__(self, collection='soc', split="train", target_filter=None, batch_size=32):
+    def __init__(self, collection='soc', split="train", target_filter=None, batch_size=32,
+                 num_workers=8, path=None, **folder_kwargs):
+        """
+        Args:
+            collection: MSTAR collection to use (e.g. ``soc``).
+            split: Split used when generating the normal/mask data.
+            target_filter: Optional list of target names to keep.
+            batch_size: Train/eval batch size (forced to 1 when DEBUG is set).
+            num_workers: Dataloader workers.
+            path: Dataset directory (defaults to ``<DATASETS_PATH>/PLMSTAR``).
+            **folder_kwargs: Any other ``anomalib.data.Folder`` argument (seed, split modes, ...).
+        """
         self.dataset = collection
-        self.image_root = os.path.join(DATASETS_PATH, NAME)
+        self.image_root = path or os.path.join(DATASETS_PATH, NAME)
         self.split = split
         self.chip_size = 100
         self.patch_size = 100
@@ -25,7 +36,7 @@ class MSTAR(Folder):
         self.output_root = os.path.join(self.image_root, self.dataset, self.split)
         self.image_size = (128,128)
 
-        fetch_dataset(NAME, drive_file_id=DRIVE_FILE_ID)
+        fetch_blob(self.image_root, drive_file_id=DRIVE_FILE_ID)
 
         # Check if the main directory exists; if not, generate the dataset
         if not os.path.exists(self.output_root):
@@ -33,15 +44,16 @@ class MSTAR(Folder):
 
         super().__init__(
             name = NAME,
-            root = os.path.join(DATASETS_PATH, NAME, self.dataset),
+            root = os.path.join(self.image_root, self.dataset),
             mask_dir = f"{self.split}/masks",
             normal_dir = f"{self.split}/norm",
             abnormal_dir = f"{self.split}/anom",
             normal_test_dir = "test/norm",
             train_batch_size = self.train_batch_size,
             eval_batch_size = self.eval_batch_size,
+            num_workers = num_workers,
+            **folder_kwargs,
         )
-        self.setup()
 
     def generate_mask(self, image, n_clusters=2, sigma=4, kernel_size=50, shadow=False):
         """
