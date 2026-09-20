@@ -13,6 +13,18 @@ logger = logging.getLogger(__name__)
 NAME = "PLMSTAR"
 DRIVE_FILE_ID = "1TT3SrDMW8ICcknoAXXZLLCLk0X6L1nAL"
 
+DATASET_INFO = {
+    "name": "MSTAR",
+    "summary": "Moving and Stationary Target Acquisition and Recognition: X-band SAR chips of ground vehicles on clutter.",
+    "source": "https://www.sdms.afrl.af.mil/index.php?collection=mstar",
+    "download": "Google Drive (PLMSTAR conversion of the public release)",
+    "collections": "soc, eoc-1, eoc-1-t72-132, eoc-1-t72-a64, eoc-2-cv, eoc-2-vv, confuser-rejection",
+    "anomaly": "the vehicle (and its radar shadow)",
+    "normal_data": "generated: target and shadow segmented (KMeans) and filled with background pixels",
+    "masks": "generated: target + shadow",
+    "notes": "Chips are 128x128. Normal images are synthetic, so they contain no vehicle-free real scenes.",
+}
+
 class MSTAR(Folder):
     def __init__(self, collection='soc', split="train", target_filter=None, batch_size=32,
                  num_workers=8, path=None, segmenter="classical", **folder_kwargs):

@@ -14,6 +14,18 @@ logger = logging.getLogger(__name__)
 NAME = "Official-SSDD-OPEN"
 DRIVE_FILE_ID = "1glNJUGotrbEyk43twwB9556AdngJsynZ"
 
+DATASET_INFO = {
+    "name": "SSDD",
+    "summary": "SAR Ship Detection Dataset (official release, with pixel-level ship masks: PSeg_SSDD).",
+    "source": "https://drive.google.com/file/d/1glNJUGotrbEyk43twwB9556AdngJsynZ",
+    "download": "Google Drive (RAR archive)",
+    "collections": "PSeg_SSDD",
+    "anomaly": "ships",
+    "normal_data": "generated: ship masks dilated by 35 px and filled with background patches (patch inpainting)",
+    "masks": "provided (ground-truth segmentation)",
+    "notes": "",
+}
+
 
 class SSDD(Folder):
     def __init__(self, sub_dataset="PSeg_SSDD", sub_category="", split="train", batch_size=16,

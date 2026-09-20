@@ -1,125 +1,61 @@
-# Benchmarking suite for synthetic aperture radar imagery anomaly detection (SARIAD) algorithms
+# SARIAD
+
+**Benchmarking suite for synthetic aperture radar imagery anomaly detection (SARIAD) algorithms.**
+SARIAD integrates SAR datasets, anomaly detection models and pre-processing methods with
+[Anomalib](https://anomalib.readthedocs.io/) and evaluates them with a common set of metrics
+([paper](https://arxiv.org/abs/2504.08115)).
 
 <figure>
-  <img src="./figs/overall.svg" alt="Overall Figure">
+  <img src="_static/overall.svg" alt="Overall figure" style="max-width: 100%;">
   <figcaption>
-      Figure 1: Overall figure describing the flow of SARIAD. The figure is adapted from <a href="https://arxiv.org/abs/2202.08341">Anomalib</a> for comparison.
+    The flow of SARIAD, adapted from <a href="https://arxiv.org/abs/2202.08341">Anomalib</a>. The component lists
+    in the figure date from the paper; see <a href="datasets.html">Datasets</a> and <a href="models.html">Models</a>
+    for what is available now.
   </figcaption>
 </figure>
 
-## Overview
-This package is designed for anomaly detection in Synthetic Aperture Radar (SAR) images, leveraging PyTorch Lightning and models from [Anomalib](https://anomalib.readthedocs.io/). The package is modular, allowing easy benchmarking and dataset integration.
+## Install
 
-## Directory Structure
-```
-SARIAD/
-├── config/
-│   ├── default.yaml
-│   ├── environment.yaml  # Conda environment file
-├── datasets/
-│   ├── __init__.py
-│   ├── MSTAR/
-│   ├── custom_dataset/
-│   └── sar_datamodule.py  
-├── models/
-│   ├── __init__.py
-│   ├── anomalib_models.py
-│   ├── autoencoder.py
-│   └── transformer.py
-├── preprocessing/
-│   ├── __init__.py
-│   ├── normalize.py
-│   ├── augmentations.py
-│   └── utils.py
-├── benchmarks/
-│   ├── __init__.py
-│   └── benchmarking.py
-├── main.py
-├── __init__.py
-└── utils/
-    ├── __init__.py
-    └── config_loader.py
-```
-
-## Installation
-Our package is on PyPI and thus can simply be installed with `pip install SARIAD` using `python>=3.13`.
-
-### Development Installation
 ```bash
-# Clone the repository
-git clone https://github.com/Advanced-Vision-and-Learning-Lab/SARIAD
-
-# Install SARIAD in editable mode
-pip install -e .
+git clone --recurse-submodules https://github.com/Advanced-Vision-and-Learning-Lab/SARIAD
+cd SARIAD
+pip install -e ".[dev]"          # Python >= 3.13
 ```
 
-## Configuration
-Edit the YAML file located in `config/default.yaml` to specify the dataset path, model, and training parameters.
+Some models need code from git submodules (SARATR-X, SAR-CNN); `--recurse-submodules` (or
+`git submodule update --init`) fetches them. Importing SARIAD does not require them.
 
-## Usage
+## Use
+
+Describe experiments in a YAML file and run them, repeated and compared in a LaTeX table
+(see `SARIAD/config/default.yaml`):
+
 ```bash
-# Train with a specific configuration
-python main.py --config config/default.yaml
+sariad --config SARIAD/config/default.yaml --dry-run    # check names and parameters, no downloads
+sariad --config SARIAD/config/default.yaml
 ```
 
-## Benchmarking
-To enable benchmarking, set `benchmark.enabled: True` in the YAML file and specify the number of runs.
+or use the pieces directly:
 
-## Preprocessing
-- **normalize.py**: Functions for data normalization.
-- **augmentations.py**: Functions for data augmentations.
-- **utils.py**: Utility functions for SAR-specific preprocessing.
+```python
+from anomalib.engine import Engine
+from SARIAD.datasets import SSDD
+from SARIAD.models import PadimACE, YOLOAnomaly       # or any anomalib model, e.g. anomalib.models.Padim
+from SARIAD.pre_processing import MedianFilter
+from SARIAD.utils.inf import Inferencer
 
-The `SARDataModule` located in the `datasets` folder imports these functions to ensure consistent preprocessing across datasets.
-
-## License
-MIT License
-
-## Acknowledgments
-This project is inspired by [Anomalib](https://anomalib.readthedocs.io/) and [Benchmarks for Medical Anomaly Detection (BMAD)](https://github.com/dorisbao/bmad).
-
-## Contributing
-Contributions are welcome! To contribute:
-1. Fork the repository on GitHub.
-2. Create a new branch with a descriptive name.
-3. Make your changes and ensure they follow the code style guidelines.
-4. Write unit tests for any new features or bug fixes.
-5. Submit a pull request with a clear description of your changes.
-
-For major changes, please open an issue first to discuss what you'd like to change. We appreciate your contributions to improve this work!
-
-## Citing SARIAD
-
-If you use the SARIAD code, please cite the following reference using the following entry.
-
-**Plain Text:**
-
-L. Chauvin, S. Gupta, A. Ibarra and J. Peeples, "Benchmarking suite for synthetic aperture radar imagery anomaly detection (SARIAD) algorithms," in Algorithms for Synthetic Aperture Radar Imagery XXXII, vol. TBD. International Society for Optics and Photonics (SPIE), 2025, [DOI: 10.1117/12.3052519](https://doi.org/10.1117/12.3052519)
-
-[![arXiv](http://img.shields.io/badge/cs.CV-arXiv%3A2504.08115-B31B1B.svg)](https://doi.org/10.48550/arXiv.2504.08115)
-
-**BibTex:**
-
-```
-@inproceedings{Chauvin2025Benchmarking,
-  title={Benchmarking suite for synthetic aperture radar imagery anomaly detection (SARIAD) algorithms},
-  author={Chauvin, Lucian and Gupta, Somil, and Ibarra, Angelina, and Peeples, Joshua},
-  booktitle={Algorithms for Synthetic Aperture Radar Imagery XXXII},
-  pages={TBD},
-  year={2025},
-  organization={International Society for Optics and Photonics (SPIE)}
-  doi={10.1117/12.3052519}
-}
+datamodule = SSDD()
+model = YOLOAnomaly(weights="yolo11n.pt")
+engine = Engine()
+engine.fit(model=model, datamodule=datamodule)
+print(Inferencer().evaluate(model, datamodule, engine=engine))
 ```
 
-## Citing MSTAR
-If you use this dataset in your research, please cite the following paper:
-```
-@misc{mstar2025,
-  title = {MSTAR Public Dataset},
-  author = {{U.S. Air Force}},
-  year = {1995},
-  note = {Sensor Data Management System (SDMS)},
-  url = {https://www.sdms.afrl.af.mil/index.php?collection=mstar}
-}
+```{toctree}
+:maxdepth: 2
+:caption: Contents
+
+datasets
+models
+source/modules
 ```

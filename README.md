@@ -3,74 +3,74 @@
 <figure>
   <img src="./figs/overall.svg" alt="Overall Figure">
   <figcaption>
-      Figure 1: Overall figure describing the flow of SARIAD. The figure is adapted from <a href="https://arxiv.org/abs/2202.08341">Anomalib</a> for comparison.
+      Figure 1: Overall figure describing the flow of SARIAD. The figure is adapted from <a href="https://arxiv.org/abs/2202.08341">Anomalib</a> for comparison. The component lists in the figure date from the paper; see the lists below for what is available now.
   </figcaption>
 </figure>
 
 ## Overview
-This package is designed for anomaly detection in Synthetic Aperture Radar (SAR) images, leveraging PyTorch Lightning and models from [Anomalib](https://anomalib.readthedocs.io/). The package is modular, allowing easy benchmarking and dataset integration.
+SARIAD integrates SAR datasets, anomaly detection models and pre-processing methods with [Anomalib](https://anomalib.readthedocs.io/) (PyTorch Lightning) and evaluates them with a common set of image- and pixel-level metrics. Every [Anomalib model](https://anomalib.readthedocs.io/) (Padim, Patchcore, EfficientAd, Dinomaly, ...) can be used by name next to the SAR-specific ones.
 
-## Directory Structure
+| | Available |
+|---|---|
+| **Datasets** | MSTAR, HRSID, SSDD, SAMPLE_PUBLIC, SARDet_100K (target = anomaly; normal images are generated where the dataset has none) |
+| **Models** | SARATRX (SARATR-X masked autoencoder), YOLOAnomaly (Ultralytics backbones), PadimACE (PaDiM with adaptive cosine estimator), MSFA (filter-augmented input), plus all Anomalib models |
+| **Pre-processing** | NLM (non-local means), MedianFilter, SARCNN (learned despeckling), Default |
+| **Metrics** | Accuracy, precision, recall, F1, G-mean, MAR/FAR, image and pixel AUROC, pixel IoU/F1, ROC/PR curves, LaTeX comparison tables |
+
+Details, how normal data is generated and candidate datasets/models: see the [documentation](docs/index.md) (`docs/`).
+
+## Directory structure
 ```
 SARIAD/
-├── config/
-│   ├── default.yaml
-│   ├── environment.yaml  # Conda environment file
-├── datasets/
-│   ├── __init__.py
-│   ├── MSTAR/
-│   ├── custom_dataset/
-│   └── sar_datamodule.py  
-├── models/
-│   ├── __init__.py
-│   ├── anomalib_models.py
-│   ├── autoencoder.py
-│   └── transformer.py
-├── preprocessing/
-│   ├── __init__.py
-│   ├── normalize.py
-│   ├── augmentations.py
-│   └── utils.py
-├── benchmarks/
-│   ├── __init__.py
-│   └── benchmarking.py
-├── main.py
-├── __init__.py
-└── utils/
-    ├── __init__.py
-    └── config_loader.py
+├── config/          # YAML experiment runner (run.py) and default.yaml
+├── datasets/        # datamodules (Anomalib Folder subclasses): mstar, hrsid, ssdd, sample_public, sardet
+├── models/          # SARATRX, YOLO, PadimACE, MFSA (MSFA), components (shared Gaussian base); lazy imports
+├── pre_processing/  # NLM, MedianFilter, SARCNN, Default
+└── utils/           # blob_utils (download/extract), normal_gen (normal-image generation), inf (Inferencer, Metrics)
+demo/                # demo.py (run a YAML file), train.py (one model on one dataset)
+docs/                # Sphinx documentation
+tests/               # pytest suite (offline, CPU)
 ```
 
 ## Installation
-Our package is on PyPI and thus can simply be installed with `pip install SARIAD` using `python>=3.13`.
+Python >= 3.13. From PyPI: `pip install SARIAD`.
 
-### Development Installation
+### Development installation
 ```bash
-# Clone the repository
-git clone https://github.com/Advanced-Vision-and-Learning-Lab/SARIAD
-
-# Install SARIAD in editable mode
-pip install -e .
+git clone --recurse-submodules https://github.com/Advanced-Vision-and-Learning-Lab/SARIAD
+cd SARIAD
+pip install -e ".[dev]"      # or: conda env create -f SARIAD/config/environment.yaml
 ```
-
-## Configuration
-Edit the YAML file located in `config/default.yaml` to specify the dataset path, model, and training parameters.
+SARATRX and SARCNN need git submodules (`--recurse-submodules`, or `git submodule update --init`); nothing else does, and importing SARIAD works without them. Install a CUDA build of PyTorch first if you have a GPU (see the comment in `SARIAD/config/environment.yaml`).
 
 ## Usage
+Describe the datasets, models, pre-processors and repetitions in a YAML file (see `SARIAD/config/default.yaml`) and run it:
 ```bash
-# Train with a specific configuration
-python main.py --config config/default.yaml
+sariad --config SARIAD/config/default.yaml --dry-run   # validate names and parameters, no downloads
+sariad --config SARIAD/config/default.yaml             # runs every experiment, writes metrics, plots and comparison_table.tex
 ```
+Datasets are stored in `./datasets` (override with `SARIAD_DATASETS_PATH` or a dataset's `path` argument).
 
-## Benchmarking
-To enable benchmarking, set `benchmark.enabled: True` in the YAML file and specify the number of runs.
+Or from Python:
+```python
+from anomalib.engine import Engine
+from SARIAD.datasets import SSDD
+from SARIAD.models import YOLOAnomaly
+from SARIAD.utils.inf import Inferencer
 
-## Preprocessing
-- **normalize.py**: Functions for data normalization.
-- **augmentations.py**: Functions for data augmentations.
-- **utils.py**: Utility functions for SAR-specific preprocessing.
+datamodule = SSDD()
+model = YOLOAnomaly(weights="yolo11n.pt")
+engine = Engine()
+engine.fit(model=model, datamodule=datamodule)
+print(Inferencer().evaluate(model, datamodule, engine=engine))
+```
+One-off runs: `python demo/train.py --dataset MSTAR --model Padim --preprocessor MedianFilter`.
 
-The `SARDataModule` located in the `datasets` folder imports these functions to ensure consistent preprocessing across datasets.
+## Tests
+```bash
+pytest                                            # offline, CPU, a few minutes
+SARIAD_TEST_NETWORK=1 pytest tests/test_models_optional.py   # also downloads YOLO weights
+```
 
 ## License
 MIT License
@@ -83,7 +83,7 @@ Contributions are welcome! To contribute:
 1. Fork the repository on GitHub.
 2. Create a new branch with a descriptive name.
 3. Make your changes and ensure they follow the code style guidelines.
-4. Write unit tests for any new features or bug fixes.
+4. Write unit tests for any new features or bug fixes (`tests/`).
 5. Submit a pull request with a clear description of your changes.
 
 For major changes, please open an issue first to discuss what you'd like to change. We appreciate your contributions to improve this work!

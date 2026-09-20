@@ -17,3 +17,5 @@ build/
 *.ckpt
 *.pt
 comparison_output/
+docs/_generated/
+docs/_static/

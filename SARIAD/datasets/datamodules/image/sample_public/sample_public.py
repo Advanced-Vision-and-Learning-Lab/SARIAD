@@ -31,6 +31,18 @@ logger = logging.getLogger(__name__)
 NAME = "SAMPLE_dataset_public"
 LINK = "https://github.com/benjaminlewis-afrl/SAMPLE_dataset_public/archive/refs/heads/master.zip"
 
+DATASET_INFO = {
+    "name": "SAMPLE_PUBLIC",
+    "summary": "Synthetic and Measured Paired Labeled Experiment: 10 vehicle classes as measured (MSTAR) and CAD-simulated chips.",
+    "source": "https://github.com/benjaminlewis-afrl/SAMPLE_dataset_public",
+    "download": "GitHub archive (about 1.5 GB)",
+    "collections": "domain: real | synth; scaling: qpm | decibel (1,345 chips of 128x128 for each combination)",
+    "anomaly": "the vehicle (and its radar shadow)",
+    "normal_data": "generated like MSTAR; chips whose target cannot be segmented reliably are skipped",
+    "masks": "generated: target + shadow",
+    "notes": "Split by azimuth (highest azimuths are the test set). Use `qpm`: the target segmentation fails on many dB-scaled chips.",
+}
+
 DOMAINS = ("real", "synth")
 SCALINGS = ("qpm", "decibel")
 _AZIMUTH = re.compile(r"azCenter_(\d+)")

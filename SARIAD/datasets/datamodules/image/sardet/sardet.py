@@ -31,6 +31,18 @@ logger = logging.getLogger(__name__)
 NAME = "SARDet_100K"
 KAGGLE = "greatbird/sardet-100k"
 
+DATASET_INFO = {
+    "name": "SARDet_100K",
+    "summary": "Large-scale multi-class SAR object detection dataset (COCO format, NeurIPS 2024).",
+    "source": "https://arxiv.org/abs/2403.06534",
+    "download": "Kaggle `greatbird/sardet-100k` (tens of GB, needs Kaggle credentials)",
+    "collections": "optional category filter (e.g. ship); at most `max_images` per split are generated",
+    "anomaly": "the annotated objects (ships, aircraft, vehicles, ...)",
+    "normal_data": "generated: annotated boxes dilated and filled with background patches",
+    "masks": "generated from the bounding boxes (box-shaped)",
+    "notes": "",
+}
+
 
 def find_root(path: str | Path) -> Path:
     """Locate the directory that contains ``Annotations/`` (the Kaggle archive may add nesting)."""

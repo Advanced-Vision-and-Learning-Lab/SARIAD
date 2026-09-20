@@ -1,8 +1,0 @@
-sphinx
-sphinx_design
-myst_parser
-nbsphinx
-sphinx-autodoc-typehints
-sphinx-copybutton
-sphinx-book-theme
-linkify-it-py

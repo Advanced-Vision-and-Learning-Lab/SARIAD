@@ -24,3 +24,20 @@ def test_datasets_exported():
     import SARIAD.datasets as datasets
 
     assert {"MSTAR", "HRSID", "SSDD", "SAMPLE_PUBLIC", "SARDet_100K"} <= set(datasets.__all__)
+
+
+def test_datasets_all_lists_only_datamodules_and_info_covers_them():
+    """The runner resolves dataset names from __all__: metadata must not leak into it."""
+    import SARIAD.datasets as datasets
+
+    assert "DATASETS_INFO" not in datasets.__all__
+    assert set(datasets.DATASETS_INFO) == set(datasets.__all__)
+    for info in datasets.DATASETS_INFO.values():
+        assert {"name", "summary", "source", "download", "anomaly", "normal_data", "masks"} <= set(info)
+
+
+def test_models_info_covers_exported_models():
+    import SARIAD.models as models
+
+    assert set(models.MODELS_INFO) == set(models.__all__)
+    assert all({"summary", "paper", "code", "training"} <= set(info) for info in models.MODELS_INFO.values())

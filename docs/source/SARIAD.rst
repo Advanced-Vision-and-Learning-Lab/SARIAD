@@ -11,17 +11,7 @@ Subpackages
    SARIAD.datasets
    SARIAD.models
    SARIAD.pre_processing
-
-Submodules
-----------
-
-SARIAD.main module
-------------------
-
-.. automodule:: SARIAD.main
-   :members:
-   :undoc-members:
-   :show-inheritance:
+   SARIAD.utils
 
 Module contents
 ---------------

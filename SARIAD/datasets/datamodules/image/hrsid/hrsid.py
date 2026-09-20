@@ -7,6 +7,18 @@ import os
 NAME = "HRSID"
 DRIVE_FILE_ID = "1idg_k6ccHMBsgvj86zCKUePIjGLUuHBs"
 
+DATASET_INFO = {
+    "name": "HRSID",
+    "summary": "High-Resolution SAR Images Dataset for ship detection, semantic segmentation and instance segmentation.",
+    "source": "https://github.com/chaozhong2010/HRSID",
+    "download": "Google Drive (archive with the normal images and masks already prepared)",
+    "collections": "-",
+    "anomaly": "ships",
+    "normal_data": "shipped in the download archive (`*_norm` folders)",
+    "masks": "shipped in the download archive (`*_masks` folders)",
+    "notes": "Images are 800x800. The original dataset is GPL-3.0 licensed.",
+}
+
 class HRSID(Folder):
     def __init__(self, split="train", batch_size=16, num_workers=8, path=None, **folder_kwargs):
         self.split = split
