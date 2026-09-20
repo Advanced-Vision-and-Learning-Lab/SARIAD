@@ -13,3 +13,5 @@ docs/_build/
 .venv/
 dist/
 build/
+*.pth
+*.ckpt
