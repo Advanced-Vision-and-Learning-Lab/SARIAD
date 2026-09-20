@@ -10,6 +10,7 @@ import importlib
 # model class name -> module (relative to this package) that defines it
 _MODELS = {
     "SARATRX": ".image.SARATRX",
+    "YOLOAnomaly": ".image.YOLO",
 }
 
 __all__ = sorted(_MODELS)
