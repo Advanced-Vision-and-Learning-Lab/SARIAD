@@ -6,7 +6,6 @@ import torch
 class Default_Transform(Transform):
     def __init__(self, model_transform):
         super().__init__()
-        print(model_transform)
         self.pre_transform = Compose([
             model_transform
         ])
