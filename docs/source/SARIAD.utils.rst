@@ -9,29 +9,37 @@ SARIAD.utils.blob\_utils module
 
 .. automodule:: SARIAD.utils.blob_utils
    :members:
-   :undoc-members:
    :show-inheritance:
+   :undoc-members:
 
 SARIAD.utils.img\_utils module
 ------------------------------
 
 .. automodule:: SARIAD.utils.img_utils
    :members:
-   :undoc-members:
    :show-inheritance:
+   :undoc-members:
 
 SARIAD.utils.inf module
 -----------------------
 
 .. automodule:: SARIAD.utils.inf
    :members:
-   :undoc-members:
    :show-inheritance:
+   :undoc-members:
+
+SARIAD.utils.normal\_gen module
+-------------------------------
+
+.. automodule:: SARIAD.utils.normal_gen
+   :members:
+   :show-inheritance:
+   :undoc-members:
 
 Module contents
 ---------------
 
 .. automodule:: SARIAD.utils
    :members:
-   :undoc-members:
    :show-inheritance:
+   :undoc-members:

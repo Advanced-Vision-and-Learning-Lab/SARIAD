@@ -9,21 +9,21 @@ SARIAD.config.config module
 
 .. automodule:: SARIAD.config.config
    :members:
-   :undoc-members:
    :show-inheritance:
+   :undoc-members:
 
 SARIAD.config.run module
 ------------------------
 
 .. automodule:: SARIAD.config.run
    :members:
-   :undoc-members:
    :show-inheritance:
+   :undoc-members:
 
 Module contents
 ---------------
 
 .. automodule:: SARIAD.config
    :members:
-   :undoc-members:
    :show-inheritance:
+   :undoc-members:

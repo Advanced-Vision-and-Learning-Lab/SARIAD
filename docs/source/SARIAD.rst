@@ -18,5 +18,5 @@ Module contents
 
 .. automodule:: SARIAD
    :members:
-   :undoc-members:
    :show-inheritance:
+   :undoc-members:

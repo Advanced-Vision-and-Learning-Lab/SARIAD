@@ -9,13 +9,13 @@ SARIAD.pre\_processing.SARCNN.SARCNN module
 
 .. automodule:: SARIAD.pre_processing.SARCNN.SARCNN
    :members:
-   :undoc-members:
    :show-inheritance:
+   :undoc-members:
 
 Module contents
 ---------------
 
 .. automodule:: SARIAD.pre_processing.SARCNN
    :members:
-   :undoc-members:
    :show-inheritance:
+   :undoc-members:

@@ -25,7 +25,7 @@ def dataset_table() -> str:
         rows.append(
             f"| `{key}` | {_cell(info['anomaly'])} | {_cell(info['normal_data'])} | {_cell(info['masks'])} | [{_cell(info['name'])}]({info['source']}) |"
         )
-        lines = [f"### `{key}`", "", info["summary"], "", f"- **Download:** {info['download']}"]
+        lines = [f"**`{key}`**", "", info["summary"], "", f"- **Download:** {info['download']}"]
         if info.get("collections") and info["collections"] != "-":
             lines.append(f"- **Variants:** {info['collections']}")
         if info.get("notes"):

@@ -9,15 +9,15 @@ layer of the backbone to accept them.
 The reference implementation lives in an MMDetection project and uses CUDA-only operations;
 these are dependency-free, device-agnostic re-implementations of a subset of its filters:
 
-===========  ========  ====================================================================
-name         channels  description
-===========  ========  ====================================================================
-``raw``      1         intensity (mean of the input channels)
-``grad_edge`` 1        log-ratio-of-averages edge strength (constant false alarm rate style)
-``hog``      9         histogram of oriented gradients, per pixel, 8x8 cells, bilinear upsampled
-``canny``    6         blurred image, gradient magnitude and orientation, thin edges (non-maximum
-                       suppression), thresholded edges, thresholded gradient magnitude
-===========  ========  ====================================================================
+=============  ========  ====================================================================
+name           channels  description
+=============  ========  ====================================================================
+``raw``        1         intensity (mean of the input channels)
+``grad_edge``  1         log-ratio-of-averages edge strength (constant false alarm rate style)
+``hog``        9         histogram of oriented gradients, per pixel, 8x8 cells, bilinear upsampled
+``canny``      6         blurred image, gradient magnitude and orientation, thin edges (non-maximum
+                         suppression), thresholded edges, thresholded gradient magnitude
+=============  ========  ====================================================================
 
 The wavelet-scattering and Haar filters of the original need extra dependencies
 (``kymatio``, ``torchhaarfeatures``) and are not included.

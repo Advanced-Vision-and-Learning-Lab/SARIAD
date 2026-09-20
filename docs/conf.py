@@ -32,6 +32,8 @@ extensions = [
 
 # The SARATR-X code is a git submodule that may not be checked out where the docs are built.
 autodoc_mock_imports = ["SARIAD.models.image.SARATRX.SARATRX"]
+# Transform.transform inherits a torchvision docstring that links to a label only torchvision's docs have.
+autodoc_inherit_docstrings = False
 
 myst_enable_extensions = ["colon_fence", "linkify", "substitution", "tasklist", "deflist", "fieldlist", "amsmath", "dollarmath"]
 myst_heading_anchors = 3

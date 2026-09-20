@@ -11,16 +11,16 @@ def fetch_blob(path, link="", drive_file_id="", kaggle="", is_archive=True, ext=
     Fetches the dataset blob from a direct link, Google Drive, or Kaggle,
     and extracts it directly to the specified path.
 
-    Parameters:
-    - path: str, The full path to the directory where the extracted blob should reside (if is_archive=True)
+    Args:
+        path: The full path to the directory where the extracted blob should reside (if is_archive=True)
             or the full path to the file itself (if is_archive=False).
-    - link: str, optional, direct HTTP(s) link to an archive or single file.
-    - drive_file_id: str, optional, ID for Google Drive file (archive or single file).
-    - kaggle: str, optional, KaggleHub dataset slug.
-    - is_archive: bool, set to True if the fetched item is an archive that needs extraction.
-                  Set to False for single files like .pth.
-    - ext: str, archive type (zip, tar.gz, rar, tar) or file extension (e.g., "pth"),
-           used for link and drive_file_id. This parameter is ignored if 'kaggle' is provided.
+        link: Direct HTTP(s) link to an archive or single file.
+        drive_file_id: ID for Google Drive file (archive or single file).
+        kaggle: KaggleHub dataset slug.
+        is_archive: True if the fetched item is an archive that needs extraction.
+            False for single files like .pth.
+        ext: Archive type (zip, tar.gz, rar, tar) or file extension (e.g., "pth"),
+            used for link and drive_file_id. Ignored if 'kaggle' is provided.
     """
     if is_archive:
         if os.path.exists(path) and os.path.isdir(path) and len(os.listdir(path)) > 0:
@@ -176,17 +176,17 @@ def fetch_dataset(dataset_name, datasets_dir=DATASETS_PATH, link="", drive_file_
     Fetches a dataset blob from a direct link, Google Drive, or Kaggle,
     maintaining backward compatibility with the original fetch_blob signature.
 
-    Parameters:
-    - dataset_name: str, The name of the dataset. This will be the directory name inside datasets_dir
-                    for archives, or the file name if is_archive is False.
-    - datasets_dir: str, The root directory where datasets are stored.
-    - link: str, optional, direct HTTP(s) link to an archive or file.
-    - drive_file_id: str, optional, ID for Google Drive file (archive or file).
-    - kaggle: str, optional, KaggleHub dataset slug.
-    - ext: str, archive type (zip, tar.gz, rar, tar) or file extension (e.g., "pth"),
-           used for link and drive_file_id. This parameter is ignored if 'kaggle' is provided.
-    - is_archive: bool, set to True if the fetched item is an archive that needs extraction.
-                  Set to False for single files like .pth.
+    Args:
+        dataset_name: The name of the dataset. This will be the directory name inside datasets_dir
+            for archives, or the file name if is_archive is False.
+        datasets_dir: The root directory where datasets are stored.
+        link: Direct HTTP(s) link to an archive or file.
+        drive_file_id: ID for Google Drive file (archive or file).
+        kaggle: KaggleHub dataset slug.
+        ext: Archive type (zip, tar.gz, rar, tar) or file extension (e.g., "pth"),
+            used for link and drive_file_id. Ignored if 'kaggle' is provided.
+        is_archive: True if the fetched item is an archive that needs extraction.
+            False for single files like .pth.
     """
     full_dataset_path = os.path.join(datasets_dir, dataset_name)
     fetch_blob(
