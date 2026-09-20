@@ -14,5 +14,5 @@ Module contents
 
 .. automodule:: SARIAD.datasets.datamodules
    :members:
-   :undoc-members:
    :show-inheritance:
+   :undoc-members:

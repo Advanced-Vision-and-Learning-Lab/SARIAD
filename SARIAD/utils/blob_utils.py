@@ -2,33 +2,36 @@ import os, shutil, requests, zipfile, tarfile, rarfile, gdown, kagglehub
 from tqdm import tqdm
 
 from SARIAD.config import DATASETS_PATH
+import logging
+
+logger = logging.getLogger(__name__)
 
 def fetch_blob(path, link="", drive_file_id="", kaggle="", is_archive=True, ext="zip"):
     """
     Fetches the dataset blob from a direct link, Google Drive, or Kaggle,
     and extracts it directly to the specified path.
 
-    Parameters:
-    - path: str, The full path to the directory where the extracted blob should reside (if is_archive=True)
+    Args:
+        path: The full path to the directory where the extracted blob should reside (if is_archive=True)
             or the full path to the file itself (if is_archive=False).
-    - link: str, optional, direct HTTP(s) link to an archive or single file.
-    - drive_file_id: str, optional, ID for Google Drive file (archive or single file).
-    - kaggle: str, optional, KaggleHub dataset slug.
-    - is_archive: bool, set to True if the fetched item is an archive that needs extraction.
-                  Set to False for single files like .pth.
-    - ext: str, archive type (zip, tar.gz, rar, tar) or file extension (e.g., "pth"),
-           used for link and drive_file_id. This parameter is ignored if 'kaggle' is provided.
+        link: Direct HTTP(s) link to an archive or single file.
+        drive_file_id: ID for Google Drive file (archive or single file).
+        kaggle: KaggleHub dataset slug.
+        is_archive: True if the fetched item is an archive that needs extraction.
+            False for single files like .pth.
+        ext: Archive type (zip, tar.gz, rar, tar) or file extension (e.g., "pth"),
+            used for link and drive_file_id. Ignored if 'kaggle' is provided.
     """
     if is_archive:
         if os.path.exists(path) and os.path.isdir(path) and len(os.listdir(path)) > 0:
-            print(f"Dataset found locally at: {path}")
+            logger.info(f"Dataset found locally at: {path}")
             return
     else:
         if os.path.exists(path) and os.path.isfile(path):
-            print(f"File found locally at: {path}")
+            logger.info(f"File found locally at: {path}")
             return
 
-    print(f"Dataset not found locally at {path}. Downloading...")
+    logger.info(f"Dataset not found locally at {path}. Downloading...")
     if is_archive:
         os.makedirs(path, exist_ok=True)
     else:
@@ -55,12 +58,12 @@ def fetch_blob(path, link="", drive_file_id="", kaggle="", is_archive=True, ext=
         progress_bar.close()
 
         if is_archive:
-            print(f"Extracting the {ext} archive...")
+            logger.info(f"Extracting the {ext} archive...")
             _extract_archive(temp_target_path, path, ext)
             os.remove(temp_target_path)
-            print(f"Downloaded and extracted to {path}.")
+            logger.info(f"Downloaded and extracted to {path}.")
         else:
-            print(f"Downloaded file to {path}.")
+            logger.info(f"Downloaded file to {path}.")
 
     elif drive_file_id:
         if is_archive:
@@ -68,20 +71,20 @@ def fetch_blob(path, link="", drive_file_id="", kaggle="", is_archive=True, ext=
         else:
             temp_target_path = path # For single files, download directly to the final path
         
-        print(f"Downloading from Google Drive ID: {drive_file_id}")
+        logger.info(f"Downloading from Google Drive ID: {drive_file_id}")
         gdown.download(f"https://drive.google.com/uc?id={drive_file_id}", temp_target_path, quiet=False)
         
         if is_archive:
-            print(f"Extracting the {ext} archive...")
+            logger.info(f"Extracting the {ext} archive...")
             _extract_archive(temp_target_path, path, ext)
             os.remove(temp_target_path)
-            print(f"Downloaded and extracted to {path}.")
+            logger.info(f"Downloaded and extracted to {path}.")
         else:
-            print(f"Downloaded file to {path}.")
+            logger.info(f"Downloaded file to {path}.")
 
     elif kaggle:
         downloaded_kaggle_path = kagglehub.dataset_download(kaggle)
-        print(f"KaggleHub {kaggle} dataset downloaded to: {downloaded_kaggle_path}")
+        logger.info(f"KaggleHub {kaggle} dataset downloaded to: {downloaded_kaggle_path}")
         
         os.makedirs(path, exist_ok=True) # Always treat kaggle as an archive/dataset for now
 
@@ -93,10 +96,21 @@ def fetch_blob(path, link="", drive_file_id="", kaggle="", is_archive=True, ext=
             else:
                 shutil.copy2(s, d)
         
-        print(f"KaggleHub {kaggle} dataset copied to: {path}")
+        logger.info(f"KaggleHub {kaggle} dataset copied to: {path}")
 
     else:
         raise ValueError("Must provide either a `link`, `drive_file_id`, or `kaggle` slug.")
+
+def _check_member_path(base_dir, member_name):
+    """
+    Raise if extracting ``member_name`` into ``base_dir`` would escape it (path traversal,
+    e.g. ``../../etc/passwd`` or an absolute path inside an untrusted archive).
+    """
+    base = os.path.realpath(base_dir)
+    target = os.path.realpath(os.path.join(base, member_name))
+    if target != base and not target.startswith(base + os.sep):
+        raise ValueError(f"Unsafe path in archive: {member_name!r}")
+
 
 def _extract_archive(archive_path, extract_to, ext):
     """
@@ -119,22 +133,26 @@ def _extract_archive(archive_path, extract_to, ext):
         with zipfile.ZipFile(archive_path, 'r') as zip_ref:
             members = zip_ref.namelist()
             for member in tqdm(members, desc=f"Extracting {os.path.basename(archive_path)}"):
+                _check_member_path(temp_extract_dir, member)
                 zip_ref.extract(member, temp_extract_dir)
     elif ext == "rar":
         with rarfile.RarFile(archive_path) as rar_ref:
             members = rar_ref.infolist()
             for member in tqdm(members, desc=f"Extracting {os.path.basename(archive_path)}"):
+                _check_member_path(temp_extract_dir, member.filename)
                 rar_ref.extract(member, temp_extract_dir)
     elif ext == "tar.gz":
         with tarfile.open(archive_path, 'r:gz') as tar_ref:
             members = tar_ref.getmembers()
             for member in tqdm(members, desc=f"Extracting {os.path.basename(archive_path)}"):
-                tar_ref.extract(member, temp_extract_dir)
+                _check_member_path(temp_extract_dir, member.name)
+                tar_ref.extract(member, temp_extract_dir, filter="data")
     elif ext == "tar":
         with tarfile.open(archive_path, 'r:') as tar_ref:
             members = tar_ref.getmembers()
             for member in tqdm(members, desc=f"Extracting {os.path.basename(archive_path)}"):
-                tar_ref.extract(member, temp_extract_dir)
+                _check_member_path(temp_extract_dir, member.name)
+                tar_ref.extract(member, temp_extract_dir, filter="data")
     else:
         raise ValueError(f"Unsupported archive extension: {ext}. Supported: zip, rar, tar, tar.gz")
 
@@ -158,17 +176,17 @@ def fetch_dataset(dataset_name, datasets_dir=DATASETS_PATH, link="", drive_file_
     Fetches a dataset blob from a direct link, Google Drive, or Kaggle,
     maintaining backward compatibility with the original fetch_blob signature.
 
-    Parameters:
-    - dataset_name: str, The name of the dataset. This will be the directory name inside datasets_dir
-                    for archives, or the file name if is_archive is False.
-    - datasets_dir: str, The root directory where datasets are stored.
-    - link: str, optional, direct HTTP(s) link to an archive or file.
-    - drive_file_id: str, optional, ID for Google Drive file (archive or file).
-    - kaggle: str, optional, KaggleHub dataset slug.
-    - ext: str, archive type (zip, tar.gz, rar, tar) or file extension (e.g., "pth"),
-           used for link and drive_file_id. This parameter is ignored if 'kaggle' is provided.
-    - is_archive: bool, set to True if the fetched item is an archive that needs extraction.
-                  Set to False for single files like .pth.
+    Args:
+        dataset_name: The name of the dataset. This will be the directory name inside datasets_dir
+            for archives, or the file name if is_archive is False.
+        datasets_dir: The root directory where datasets are stored.
+        link: Direct HTTP(s) link to an archive or file.
+        drive_file_id: ID for Google Drive file (archive or file).
+        kaggle: KaggleHub dataset slug.
+        ext: Archive type (zip, tar.gz, rar, tar) or file extension (e.g., "pth"),
+            used for link and drive_file_id. Ignored if 'kaggle' is provided.
+        is_archive: True if the fetched item is an archive that needs extraction.
+            False for single files like .pth.
     """
     full_dataset_path = os.path.join(datasets_dir, dataset_name)
     fetch_blob(

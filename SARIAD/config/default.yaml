@@ -1,13 +1,19 @@
-# SARIAD Experiment Configuration
-# This file defines the datasets, models, preprocessors, and runs to execute.
+# SARIAD experiment configuration
+#
+#   python -m SARIAD.config.run --config SARIAD/config/default.yaml --dry-run   # validate only
+#   python -m SARIAD.config.run --config SARIAD/config/default.yaml             # run everything
+#
+# Every name below must exist: datasets in SARIAD.datasets, models in SARIAD.models or
+# anomalib.models, preprocessors in SARIAD.pre_processing. The parameters listed under
+# `datasets`, `models` and `preprocessors` are passed to that class' constructor, so they must
+# be arguments it accepts (`--dry-run` checks this).
 
 # Global settings
-seed: 42
-benchmark_runs: 3 # Number of times to repeat a run for averaging metrics. Set to 1 for a single run.
-output_dir: "results"
+seed: 42               # run i of an experiment uses seed + i
+benchmark_runs: 3      # default number of repetitions per experiment (override with `runs:`)
+output_dir: "results"  # predictions, metrics and comparison_table.tex are written here
 
-# A list of experiment runs to perform.
-# Each entry in this list defines a complete training and evaluation pipeline.
+# The experiments to run. Each entry is a complete train + predict + evaluate pipeline.
 experiments:
   - name: "Padim_on_MSTAR_without_preproc"
     dataset: MSTAR
@@ -24,39 +30,51 @@ experiments:
     preprocessor: MedianFilter
     model: Padim
 
-  # You can add more experiments here with different combinations.
-  # - name: "MedianFilter_on_SSDD"
+  # More combinations. Any anomalib model works (Patchcore, EfficientAd, Dinomaly, AnomalyDino,
+  # InpFormer, Glass, WinClip, ...), as do SARIAD's own (SARATRX, YOLOAnomaly).
+  # - name: "Patchcore_on_SSDD"
   #   dataset: SSDD
   #   preprocessor: MedianFilter
-  #   model: Padim
+  #   model: Patchcore
+  #   runs: 1
+  #
+  # PaDiM-ACE needs a folder of anomalous *training* images (target signatures); keep them
+  # disjoint from the images used for testing.
+  # - name: "PadimACE_on_SSDD"
+  #   dataset: SSDD
+  #   preprocessor: null
+  #   model: PadimACE
+  #
+  # - name: "SARATRX_on_MSTAR"
+  #   dataset: MSTAR
+  #   preprocessor: null
+  #   model: SARATRX
 
-# Configuration for models, datasets, and preprocessors
-# The names here must match the `experiments` list.
-
+# Constructor parameters
 datasets:
   MSTAR:
-    path: "data/MSTAR"
     batch_size: 32
     num_workers: 4
+    # path: "/data/PLMSTAR"   # where the dataset lives (default: <SARIAD_DATASETS_PATH>/PLMSTAR)
   HRSID:
-    path: "data/HRSID"
     batch_size: 16
     num_workers: 2
   SSDD:
-    path: "data/SSDD"
     batch_size: 16
     num_workers: 2
 
 models:
-  Padim:
-    input_size: [256, 256]
-  SARATRX:
-    input_size: [512, 512]
-    # Add other model-specific hyperparameters here.
-    
+  Padim: null
+  # PadimACE:
+  #   signature_dir: "datasets/SSDD_signature_images"
+  #   cov_type: full            # full | diagonal | isotropic
+  #   whitening: reference      # reference (original PaDiM-ACE code) | standard (textbook ACE)
+  # SARATRX:
+  #   mask_ratio: 0.75
+
 preprocessors:
   NLM:
-    # Preprocessor-specific hyperparameters
-    h: 10
+    std: 0.1
+    kernel_size: 21
   MedianFilter:
     kernel_size: 3

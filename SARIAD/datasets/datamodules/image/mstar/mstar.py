@@ -1,20 +1,47 @@
 from anomalib.data import Folder
-from SARIAD.utils.blob_utils import fetch_dataset
+from SARIAD.utils.blob_utils import fetch_blob
 from SARIAD.config import PROJECT_ROOT, DATASETS_PATH, DEBUG
 
 import json, glob, os, cv2
 import numpy as np
-from sklearn.cluster import KMeans
-from scipy.ndimage import gaussian_filter
+from SARIAD.utils.normal_gen import remove_target
 from . import mstar_importer
+import logging
+
+logger = logging.getLogger(__name__)
 
 NAME = "PLMSTAR"
 DRIVE_FILE_ID = "1TT3SrDMW8ICcknoAXXZLLCLk0X6L1nAL"
 
+DATASET_INFO = {
+    "name": "MSTAR",
+    "summary": "Moving and Stationary Target Acquisition and Recognition: X-band SAR chips of ground vehicles on clutter.",
+    "source": "https://www.sdms.afrl.af.mil/index.php?collection=mstar",
+    "download": "Google Drive (PLMSTAR conversion of the public release)",
+    "collections": "soc, eoc-1, eoc-1-t72-132, eoc-1-t72-a64, eoc-2-cv, eoc-2-vv, confuser-rejection",
+    "anomaly": "the vehicle (and its radar shadow)",
+    "normal_data": "generated: target and shadow segmented (KMeans) and filled with background pixels",
+    "masks": "generated: target + shadow",
+    "notes": "Chips are 128x128. Normal images are synthetic, so they contain no vehicle-free real scenes.",
+}
+
 class MSTAR(Folder):
-    def __init__(self, collection='soc', split="train", target_filter=None, batch_size=32):
+    def __init__(self, collection='soc', split="train", target_filter=None, batch_size=32,
+                 num_workers=8, path=None, segmenter="classical", **folder_kwargs):
+        """
+        Args:
+            collection: MSTAR collection to use (e.g. ``soc``).
+            split: Split used when generating the normal/mask data.
+            target_filter: Optional list of target names to keep.
+            batch_size: Train/eval batch size (forced to 1 when DEBUG is set).
+            num_workers: Dataloader workers.
+            path: Dataset directory (defaults to ``<DATASETS_PATH>/PLMSTAR``).
+            segmenter: Backend that finds the target when generating normal images (see ``SARIAD.utils.normal_gen``).
+            **folder_kwargs: Any other ``anomalib.data.Folder`` argument (seed, split modes, ...).
+        """
         self.dataset = collection
-        self.image_root = os.path.join(DATASETS_PATH, NAME)
+        self.segmenter = segmenter
+        self.image_root = path or os.path.join(DATASETS_PATH, NAME)
         self.split = split
         self.chip_size = 100
         self.patch_size = 100
@@ -25,7 +52,7 @@ class MSTAR(Folder):
         self.output_root = os.path.join(self.image_root, self.dataset, self.split)
         self.image_size = (128,128)
 
-        fetch_dataset(NAME, drive_file_id=DRIVE_FILE_ID)
+        fetch_blob(self.image_root, drive_file_id=DRIVE_FILE_ID)
 
         # Check if the main directory exists; if not, generate the dataset
         if not os.path.exists(self.output_root):
@@ -33,124 +60,17 @@ class MSTAR(Folder):
 
         super().__init__(
             name = NAME,
-            root = os.path.join(DATASETS_PATH, NAME, self.dataset),
+            root = os.path.join(self.image_root, self.dataset),
             mask_dir = f"{self.split}/masks",
             normal_dir = f"{self.split}/norm",
             abnormal_dir = f"{self.split}/anom",
             normal_test_dir = "test/norm",
             train_batch_size = self.train_batch_size,
             eval_batch_size = self.eval_batch_size,
+            num_workers = num_workers,
+            **folder_kwargs,
         )
-        self.setup()
 
-    def generate_mask(self, image, n_clusters=2, sigma=4, kernel_size=50, shadow=False):
-        """
-        Generate a filled mask for the image using KMeans clustering,
-        with Gaussian blurring and morphological operations to fill shapes.
-        
-        Parameters:
-            image (np.array): The input image as a NumPy array of shape (H, W, 1).
-            n_clusters (int): The number of clusters for KMeans.
-            sigma (float): Standard deviation for Gaussian blur. Higher values increase blurring.
-            kernel_size (int): Size of the structuring element for morphological operations.
-            
-        Returns:
-            np.array: The filled mask with the same shape as the input image.
-        """
-        # Check the original shape
-        original_shape = image.shape
-
-        # Apply Gaussian smoothing
-        smoothed_image = gaussian_filter(image[:, :, 0], sigma=sigma)  # Remove the channel dimension temporarily
-
-        # Flatten the smoothed image for KMeans clustering
-        reshaped_image = smoothed_image.reshape(-1, 1)
-
-        # Apply KMeans clustering
-        kmeans = KMeans(n_clusters=n_clusters, n_init=5, max_iter=100)
-        kmeans.fit(reshaped_image)
-        labels = kmeans.labels_
-
-        # Identify the cluster with the lowest intensity (background)
-        cluster_means = [np.mean(reshaped_image[labels == i]) for i in range(n_clusters)]
-        background_label = np.argmin(cluster_means)  # The darkest cluster is the background
-
-        # Reshape labels to the original 2D spatial shape
-        labels_reshaped = labels.reshape(original_shape[:2])
-
-        # Create a binary mask where the target (non-background) is 1
-        target_mask = (labels_reshaped != background_label).astype(np.uint8)
-        if(shadow):
-            target_mask = 1 - target_mask
-
-        # Morphological operations to fill in shapes
-        if(kernel_size):
-            circular_kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (kernel_size, kernel_size))
-            target_mask = cv2.morphologyEx(target_mask, cv2.MORPH_CLOSE, circular_kernel)
-
-        # Use connected components to find and keep the largest target area
-        num_labels, labels_im = cv2.connectedComponents(target_mask)
-
-        # Find the largest connected component (excluding background, label 0)
-        largest_label = 1  # Start from 1 to skip the background
-        largest_size = 0
-
-        for label in range(1, num_labels):
-            component_size = np.sum(labels_im == label)
-            if component_size > largest_size:
-                largest_size = component_size
-                largest_label = label
-
-        # Create a mask that keeps only the largest component
-        largest_component_mask = (labels_im == largest_label).astype(np.uint8)
-
-        # Make sure the largest component is white (255) and everything else is black (0)
-        final_mask = largest_component_mask  # 255 for the largest component, 0 for everything else
-
-        # Ensure the result is in uint8 format and restore the original shape
-        final_mask = final_mask.astype(np.uint8)
-
-        return final_mask
-
-    def apply_mask_to_image(self, image, mask):
-        """
-        Fills in the masked areas of the image by randomly picking pixels from the
-        background (areas not covered by the mask) and assigning those values to
-        the masked areas.
-
-        Parameters:
-            image (np.array): The input image with anomalies.
-            mask (np.array): The mask indicating anomalous regions (non-zero values).
-
-        Returns:
-            np.array: The image with anomalies filled in.
-        """
-
-        # Create the output image by copying the original
-        output_image = image.copy()
-
-        # Get the indices of the background pixels (mask == 0)
-        background_indices = np.where(mask == 0)
-
-        # Get the background pixel values (pixels where the mask is 0)
-        background_pixels = image[background_indices]
-
-        # Check if there are any background pixels
-        if len(background_pixels) == 0:
-            return image
-
-        # Iterate over the masked pixels (mask == 1)
-        masked_indices = np.where(mask == 1)
-        for idx in zip(*masked_indices):
-            # Randomly select a background pixel
-            random_pixel = background_pixels[np.random.randint(len(background_pixels))]
-
-            # Replace the masked pixel with the selected background pixel
-            output_image[idx] = random_pixel
-
-        return output_image
-
-            
     def data_scaling(self, chip):
         r = chip.max() - chip.min()
         return (chip - chip.min()) / r
@@ -158,29 +78,9 @@ class MSTAR(Folder):
     def log_scale(self, chip):
         return np.log10(np.abs(chip) + 1)
 
-    def blur_mask(self, mask, sigma=1):
-        """
-        Apply Gaussian blur to a binary mask and threshold it back to 0 and 1.
-
-        Parameters:
-            mask (np.array): Binary mask with values 0 and 1.
-            sigma (float): Standard deviation for Gaussian kernel, controls blur intensity.
-
-        Returns:
-            np.array: Blurred binary mask with values 0 and 1.
-        """
-
-        # Apply Gaussian blur on the mask
-        blurred_mask = gaussian_filter(mask.astype(float), sigma=sigma)
-
-        # Threshold the blurred mask to get values of 0 and 1
-        blurred_mask = (blurred_mask > 0.15).astype(np.uint8)
-
-        return blurred_mask
-
     def generate_cat(self, src_path, anom_dir, norm_dir, mask_dir, json_dir, split, chip_size, patch_size, use_phase, dataset):
         if not os.path.exists(src_path):
-            print(f'{src_path} does not exist')
+            logger.info(f'{src_path} does not exist')
             return
 
         category_name = os.path.basename(src_path)
@@ -194,7 +94,7 @@ class MSTAR(Folder):
         for directory in [category_anom_dir, category_norm_dir, category_mask_dir, category_json_dir]:
             os.makedirs(directory, exist_ok=True)
 
-        print(f"Processing category: {category_name}")
+        logger.info(f"Processing category: {category_name}")
         _mstar = mstar_importer.MSTAR(
             name=dataset, split=split, chip_size=chip_size, patch_size=patch_size, use_phase=use_phase, stride=1
         )
@@ -217,22 +117,11 @@ class MSTAR(Folder):
             _image = np.nan_to_num(_image, nan=0.0, posinf=0.0, neginf=0.0)  # Remove invalid values
             cv2.imwrite(os.path.join(category_anom_dir, f'{name}-{i}.png'), (_image * 255).astype(np.uint8))
 
-            # Generate mask and save it as PNG
-            target_mask = self.generate_mask(_image)
-            target_mask = self.blur_mask(target_mask, sigma=13)
-            # Apply mask to the image and save the normal image as PNG
-            target_removed = self.apply_mask_to_image(_image, target_mask)
-            if("ZIL131" in category_anom_dir):
-                shadow_mask = self.generate_mask(target_removed, n_clusters=5, sigma=5, shadow=True, kernel_size=0)
-            else:
-                shadow_mask = self.generate_mask(target_removed, n_clusters=5, sigma=10, shadow=True, kernel_size=0)
-            shadow_mask = self.blur_mask(shadow_mask, sigma=10)
-            combined_mask = np.maximum(target_mask, shadow_mask)
+            # Remove the target and its shadow to get the normal image, and keep the removed area as the mask
+            shadow_sigma = 5 if "ZIL131" in category_anom_dir else 10
+            normal, combined_mask = remove_target(_image, segmenter=self.segmenter, shadow_sigma=shadow_sigma)
 
             cv2.imwrite(os.path.join(category_mask_dir, f'{name}-{i}.png'), combined_mask*255)
-            normal = self.apply_mask_to_image(target_removed, shadow_mask)
-            normal = np.nan_to_num(normal, nan=0.0, posinf=0.0, neginf=0.0)  # Ensure valid values
-
             cv2.imwrite(os.path.join(category_norm_dir, f'{name}-{i}.png'), (normal * 255).astype(np.uint8))
 
     def generate(self):
@@ -255,7 +144,7 @@ class MSTAR(Folder):
             target_list = [target for target in target_list if target in self.target_filter]
 
         # Process each target category
-        for target in mstar_importer.target_name[self.dataset]:
+        for target in target_list:
             self.generate_cat(
                 src_path=os.path.join(raw_root, self.split, target),
                 anom_dir=anom_dir,

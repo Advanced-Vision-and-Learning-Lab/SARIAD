@@ -1,12 +1,12 @@
-from SARIAD.config.run import run_experiments
-import yaml
+"""Run the experiments described in a YAML file (default: demo.yaml next to this script).
+
+    python demo/demo.py [config.yaml]
+"""
+import sys
 from pathlib import Path
 
+from SARIAD.config.run import main
+
 if __name__ == "__main__":
-    config_file_path = "demo.yaml" 
-    try:
-        with open(config_file_path, "r") as f:
-            file_config = yaml.safe_load(f)
-        run_experiments(file_config)
-    except FileNotFoundError:
-        print(f"Error: Config file not found at {config_file_path}")
+    config = sys.argv[1] if len(sys.argv) > 1 else str(Path(__file__).with_name("demo.yaml"))
+    raise SystemExit(main(["--config", config]))

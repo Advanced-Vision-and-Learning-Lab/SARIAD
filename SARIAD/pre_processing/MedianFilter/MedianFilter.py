@@ -1,12 +1,7 @@
 from anomalib.pre_processing import PreProcessor
-from anomalib.pre_processing.utils.transform import get_exportable_transform
-from torchvision.transforms.v2 import Transform, Compose, Grayscale
-from SARIAD.utils.img_utils import img_debug
-from SARIAD.config import DEBUG
+from torchvision.transforms.v2 import Transform
 from torchvision import tv_tensors
-from SARIAD.utils.img_utils import img_debug
-from SARIAD.config import DEBUG
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 import torch
 import torch.nn.functional as F

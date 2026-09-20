@@ -1,22 +1,168 @@
-import torch
+"""Evaluation of anomaly detection predictions: streaming metrics, plots and LaTeX tables.
+
+:class:`Inferencer` accumulates the metrics batch by batch with torchmetrics (``update`` /
+``compute`` / ``reset``) and can run a model over a datamodule itself. :class:`Metrics` builds on it
+to produce the plots and LaTeX tables of the SARIAD benchmarks from saved predictions.
+"""
+
 import pickle
+from math import sqrt
+from pathlib import Path
+
+import matplotlib.pyplot as plt
+import numpy as np
+import seaborn as sns
+import torch
+from lightning.pytorch.utilities.types import _PREDICT_OUTPUT
+from sklearn.metrics import auc, precision_recall_curve, roc_curve
+from torchmetrics import MetricCollection
 from torchmetrics.classification import (
     BinaryAccuracy,
-    BinaryF1Score,
     BinaryAUROC,
+    BinaryConfusionMatrix,
+    BinaryF1Score,
     BinaryJaccardIndex,
     BinaryPrecision,
     BinaryRecall,
     BinarySpecificity,
-    BinaryConfusionMatrix,
 )
-from pathlib import Path
-from math import sqrt
-import matplotlib.pyplot as plt
-import seaborn as sns
-from sklearn.metrics import roc_curve, auc, precision_recall_curve
-from lightning.pytorch.utilities.types import _PREDICT_OUTPUT
-import numpy as np
+
+IMAGE_METRICS = [
+    "TP", "TN", "FP", "FN", "Accuracy", "Precision", "Recall/Sensitivity", "F1 Score", "Specificity",
+    "G-mean", "Missed Alarm Rate (MAR)", "False Alarm Rate (FAR)", "AUROC (Image-level)",
+]
+PIXEL_METRICS = ["Pixel-level IoU", "Pixel-level F1 Score", "AUROC (Pixel-level)"]
+
+
+class Inferencer:
+    """Streaming image- and pixel-level metrics for anomaly detection, built on torchmetrics.
+
+    Feed it anomalib prediction batches (``Batch`` objects with ``gt_label``, ``pred_label``,
+    ``pred_score`` and, for pixel metrics, ``gt_mask``, ``pred_mask`` and ``anomaly_map``) and read the
+    metrics with :meth:`compute`::
+
+        inferencer = Inferencer()
+        for batch in Engine().predict(model=model, datamodule=datamodule):
+            inferencer.update(batch)
+        print(inferencer.compute())
+
+    or let it run the model: ``Inferencer().evaluate(model, datamodule)``.
+
+    The pixel AUROC is computed from the continuous ``anomaly_map`` (not the thresholded mask).
+
+    Args:
+        pixel_thresholds: ``None`` computes the pixel AUROC exactly, which keeps every pixel score in
+            memory. An integer bins the scores into that many thresholds (constant memory, tiny
+            approximation error): use it for large datasets.
+        device: Device the metrics run on.
+    """
+
+    def __init__(self, pixel_thresholds: int | None = None, device: str | torch.device = "cpu") -> None:
+        self.label_metrics = MetricCollection({
+            "Accuracy": BinaryAccuracy(),
+            "Precision": BinaryPrecision(),
+            "Recall/Sensitivity": BinaryRecall(),
+            "F1 Score": BinaryF1Score(),
+            "Specificity": BinarySpecificity(),
+            "confusion_matrix": BinaryConfusionMatrix(),
+        })
+        self.image_auroc = BinaryAUROC()
+        self.mask_metrics = MetricCollection({"Pixel-level IoU": BinaryJaccardIndex(), "Pixel-level F1 Score": BinaryF1Score()})
+        self.pixel_auroc = BinaryAUROC(thresholds=pixel_thresholds)
+        self.to(device)
+        self._has_pixels = False
+        self._images = [0, 0]  # normal / anomalous images seen
+        self._pixels = [0, 0]  # normal / anomalous pixels seen
+
+    def to(self, device: str | torch.device) -> "Inferencer":
+        self.device = torch.device(device)
+        for metric in (self.label_metrics, self.image_auroc, self.mask_metrics, self.pixel_auroc):
+            metric.to(self.device)
+        return self
+
+    def reset(self) -> None:
+        for metric in (self.label_metrics, self.image_auroc, self.mask_metrics, self.pixel_auroc):
+            metric.reset()
+        self._has_pixels = False
+        self._images, self._pixels = [0, 0], [0, 0]
+
+    @torch.no_grad()
+    def update(self, batch) -> None:
+        """Accumulate one batch of predictions (an anomalib ``Batch``)."""
+        gt_label = batch.gt_label.to(self.device).long()
+        self._images[0] += int((gt_label == 0).sum())
+        self._images[1] += int((gt_label == 1).sum())
+        self.label_metrics.update(batch.pred_label.to(self.device).long(), gt_label)
+        self.image_auroc.update(batch.pred_score.to(self.device).float().reshape(-1), gt_label)
+
+        if batch.gt_mask is not None and batch.pred_mask is not None:
+            gt_mask = batch.gt_mask.to(self.device).long()
+            self._pixels[0] += int((gt_mask == 0).sum())
+            self._pixels[1] += int((gt_mask == 1).sum())
+            self.mask_metrics.update(batch.pred_mask.to(self.device).long(), gt_mask)
+            if batch.anomaly_map is not None:
+                self.pixel_auroc.update(batch.anomaly_map.to(self.device).float().reshape(gt_mask.shape), gt_mask)
+            self._has_pixels = True
+
+    def compute(self) -> dict:
+        """All metrics accumulated so far; metrics that cannot be computed are reported as ``"Error: ..."``."""
+        results: dict = {}
+
+        def attempt(name: str, fn) -> None:
+            try:
+                results[name] = fn()
+            except Exception as e:  # e.g. only one class present
+                results[name] = f"Error: {e}"
+
+        scores = self.label_metrics.compute()
+        tn, fp, fn, tp = (int(v) for v in scores["confusion_matrix"].flatten().tolist())
+        results.update({"TP": tp, "TN": tn, "FP": fp, "FN": fn})
+        for name in ("Accuracy", "Precision", "Recall/Sensitivity", "F1 Score", "Specificity"):
+            results[name] = scores[name].item()
+        recall, specificity = results["Recall/Sensitivity"], results["Specificity"]
+        results["G-mean"] = sqrt(recall * specificity) if recall > 0 and specificity > 0 else 0
+        results["Missed Alarm Rate (MAR)"] = 1 - recall
+        results["False Alarm Rate (FAR)"] = 1 - specificity
+        needs_both = "N/A (needs normal and anomalous samples)"
+        if min(self._images) == 0:
+            results["AUROC (Image-level)"] = needs_both
+        else:
+            attempt("AUROC (Image-level)", lambda: self.image_auroc.compute().item())
+
+        if self._has_pixels:
+            pixel = self.mask_metrics.compute()
+            results["Pixel-level IoU"], results["Pixel-level F1 Score"] = pixel["Pixel-level IoU"].item(), pixel["Pixel-level F1 Score"].item()
+            if min(self._pixels) == 0:
+                results["AUROC (Pixel-level)"] = needs_both
+            else:
+                attempt("AUROC (Pixel-level)", lambda: self.pixel_auroc.compute().item())
+        else:
+            results.update({name: "N/A (no masks)" for name in PIXEL_METRICS})
+        return results
+
+    def evaluate(self, model, datamodule, ckpt_path: str | None = None, engine=None) -> dict:
+        """Run ``model`` over the datamodule's prediction data and return the metrics.
+
+        Args:
+            model: Trained anomalib model.
+            datamodule: Datamodule providing the prediction/test data.
+            ckpt_path: Optional checkpoint to load before predicting.
+            engine: An ``anomalib.engine.Engine`` to use (a default one is created otherwise).
+        """
+        from anomalib.engine import Engine
+
+        self.reset()
+        for batch in (engine or Engine()).predict(model=model, datamodule=datamodule, ckpt_path=ckpt_path):
+            self.update(batch)
+        return self.compute()
+
+    @classmethod
+    def from_predictions(cls, predictions: _PREDICT_OUTPUT, **kwargs) -> "Inferencer":
+        inferencer = cls(**kwargs)
+        for batch in predictions:
+            inferencer.update(batch)
+        return inferencer
+
 
 class Metrics:
     """
@@ -26,60 +172,46 @@ class Metrics:
         predictions (_PREDICT_OUTPUT, optional): The raw prediction output from a PyTorch Lightning Trainer.
                                                  Defaults to None.
         metrics_to_calculate (list[str], optional): A list of metric names to calculate. Defaults to all metrics.
+        pixel_thresholds (int, optional): Bin the pixel AUROC into this many thresholds (constant memory); ``None`` is exact.
     """
-    def __init__(self, predictions: _PREDICT_OUTPUT = None, metrics_to_calculate: list[str] = None):
+    def __init__(self, predictions: _PREDICT_OUTPUT = None, metrics_to_calculate: list[str] = None, pixel_thresholds: int | None = None):
         self.predictions = predictions
+        self.pixel_thresholds = pixel_thresholds
+        self.inferencer = None
+        self._all_metrics = None
         self.gt_labels = None
         self.pred_labels = None
-        self.gt_masks = None
-        self.pred_masks = None
         self.pred_scores = None
 
-        self.available_metrics = {
-            "TP": self._calc_tp, "TN": self._calc_tn, "FP": self._calc_fp, "FN": self._calc_fn,
-            "Accuracy": self._calc_accuracy, "Precision": self._calc_precision,
-            "Recall/Sensitivity": self._calc_recall, "F1 Score": self._calc_f1_score,
-            "Specificity": self._calc_specificity, "G-mean": self._calc_g_mean,
-            "Missed Alarm Rate (MAR)": self._calc_mar, "False Alarm Rate (FAR)": self._calc_far,
-            "AUROC (Image-level)": self._calc_auroc,
-            "Pixel-level IoU": self._calc_iou, "Pixel-level F1 Score": self._calc_f1_seg,
-            "AUROC (Pixel-level)": self._calc_auroc_seg,
-        }
+        self.available_metrics = IMAGE_METRICS + PIXEL_METRICS
         
         if metrics_to_calculate is None:
-            self.metrics_to_calculate = list(self.available_metrics.keys())
+            self.metrics_to_calculate = list(self.available_metrics)
         else:
             invalid_metrics = [m for m in metrics_to_calculate if m not in self.available_metrics]
             if invalid_metrics:
-                raise ValueError(f"Invalid metrics requested: {invalid_metrics}. Available metrics are: {list(self.available_metrics.keys())}")
+                raise ValueError(f"Invalid metrics requested: {invalid_metrics}. Available metrics are: {self.available_metrics}")
             self.metrics_to_calculate = metrics_to_calculate
 
         if self.predictions is not None:
             self._aggregate_predictions()
 
     def _aggregate_predictions(self):
-        """Aggregates and concatenates prediction results from all batches."""
-        all_gt_labels = []
-        all_pred_labels = []
-        all_gt_masks = []
-        all_pred_masks = []
-        all_pred_scores = []
-
+        """Stream the predictions through an :class:`Inferencer` and keep the image-level tensors (for the curves)."""
+        self.inferencer = Inferencer(pixel_thresholds=self.pixel_thresholds)
+        gt_labels, pred_labels, pred_scores = [], [], []
         for batch in self.predictions:
-            all_gt_labels.append(batch.gt_label)
-            all_pred_labels.append(batch.pred_label)
-            all_gt_masks.append(batch.gt_mask.to(torch.float32))
-            all_pred_masks.append(batch.pred_mask.to(torch.float32))
-            all_pred_scores.append(batch.pred_score)
+            self.inferencer.update(batch)
+            gt_labels.append(batch.gt_label)
+            pred_labels.append(batch.pred_label)
+            pred_scores.append(batch.pred_score)
 
-        self.gt_labels = torch.cat(all_gt_labels)
-        self.pred_labels = torch.cat(all_pred_labels)
-        self.gt_masks = torch.cat(all_gt_masks)
-        self.pred_masks = torch.cat(all_pred_masks)
-        self.pred_scores = torch.cat(all_pred_scores)
+        self.gt_labels = torch.cat(gt_labels)
+        self.pred_labels = torch.cat(pred_labels)
+        self.pred_scores = torch.cat(pred_scores)
 
     @classmethod
-    def from_pickle(cls, prediction_path: Path, metrics_to_calculate: list[str] = None):
+    def from_pickle(cls, prediction_path: Path, metrics_to_calculate: list[str] = None, pixel_thresholds: int | None = None):
         """
         Creates a Metrics instance by reading predictions from a pickle file.
 
@@ -92,43 +224,7 @@ class Metrics:
         """
         with open(prediction_path, "rb") as f:
             predictions = pickle.load(f)
-        return cls(predictions, metrics_to_calculate)
-
-    # Helper methods for calculating each metric
-    def _calc_conf_matrix(self):
-        if not hasattr(self, '_confmat'):
-            self._confmat = BinaryConfusionMatrix()(self.pred_labels, self.gt_labels)
-        return self._confmat.flatten().tolist()
-    
-    def _calc_tp(self): return self._calc_conf_matrix()[3]
-    def _calc_tn(self): return self._calc_conf_matrix()[0]
-    def _calc_fp(self): return self._calc_conf_matrix()[1]
-    def _calc_fn(self): return self._calc_conf_matrix()[2]
-
-    def _calc_accuracy(self): return BinaryAccuracy()(self.pred_labels, self.gt_labels).item()
-    def _calc_precision(self): return BinaryPrecision()(self.pred_labels, self.gt_labels).item()
-    def _calc_recall(self): return BinaryRecall()(self.pred_labels, self.gt_labels).item()
-    def _calc_f1_score(self): return BinaryF1Score()(self.pred_labels, self.gt_labels).item()
-    def _calc_specificity(self): return BinarySpecificity()(self.pred_labels, self.gt_labels).item()
-    def _calc_g_mean(self):
-        recall = self._calc_recall()
-        specificity = self._calc_specificity()
-        return sqrt(recall * specificity) if recall > 0 and specificity > 0 else 0
-    def _calc_mar(self): return 1 - self._calc_recall()
-    def _calc_far(self): return 1 - self._calc_specificity()
-    def _calc_auroc(self): return BinaryAUROC()(self.pred_scores, self.gt_labels).item()
-    def _calc_iou(self):
-        gt_masks_flat = self.gt_masks.view(-1)
-        pred_masks_flat = self.pred_masks.view(-1)
-        return BinaryJaccardIndex()(pred_masks_flat, gt_masks_flat.long()).item()
-    def _calc_f1_seg(self):
-        gt_masks_flat = self.gt_masks.view(-1)
-        pred_masks_flat = self.pred_masks.view(-1)
-        return BinaryF1Score()(pred_masks_flat, gt_masks_flat.long()).item()
-    def _calc_auroc_seg(self):
-        gt_masks_flat = self.gt_masks.view(-1)
-        pred_masks_flat = self.pred_masks.view(-1)
-        return BinaryAUROC()(pred_masks_flat, gt_masks_flat.long()).item()
+        return cls(predictions, metrics_to_calculate, pixel_thresholds)
 
     def get_all_metrics(self) -> dict:
         """
@@ -140,15 +236,9 @@ class Metrics:
         if self.predictions is None:
             raise ValueError("Predictions are not loaded. Use from_pickle() or provide predictions to the constructor.")
 
-        metrics = {}
-        for metric_name in self.metrics_to_calculate:
-            if metric_name in self.available_metrics:
-                try:
-                    metrics[metric_name] = self.available_metrics[metric_name]()
-                except Exception as e:
-                    metrics[metric_name] = f"Error: {e}"
-        
-        return metrics
+        if self._all_metrics is None:
+            self._all_metrics = self.inferencer.compute()
+        return {name: self._all_metrics[name] for name in self.metrics_to_calculate}
 
     def save_all(self, output_dir: str = "."):
         """
@@ -162,7 +252,7 @@ class Metrics:
             raise ValueError("Predictions are not loaded. Cannot plot.")
         
         output_path = Path(output_dir)
-        output_path.mkdir(exist_ok=True)
+        output_path.mkdir(parents=True, exist_ok=True)
         
         metrics = self.get_all_metrics()
 
@@ -279,7 +369,7 @@ class Metrics:
         if multiple runs are provided for a single model.
         """
         output_path = Path(output_dir)
-        output_path.mkdir(exist_ok=True)
+        output_path.mkdir(parents=True, exist_ok=True)
         
         plt.figure(figsize=(8, 6))
         
@@ -315,7 +405,7 @@ class Metrics:
                 tprs_lower = np.maximum(mean_tpr - std_tpr, 0)
                 
                 # Plot mean ROC curve
-                plt.plot(mean_fpr, mean_tpr, lw=2, label=f'{name} (Mean AUC = {mean_auc:.2f} $\pm$ {std_auc:.2f})')
+                plt.plot(mean_fpr, mean_tpr, lw=2, label=rf'{name} (Mean AUC = {mean_auc:.2f} $\pm$ {std_auc:.2f})')
                 
                 # Plot variability area
                 plt.fill_between(mean_fpr, tprs_lower, tprs_upper, alpha=0.2, label=r"$\pm$ 1 std. dev.")
@@ -337,7 +427,7 @@ class Metrics:
         plt.close()
 
     @classmethod
-    def compare_multiple_runs(cls, runs_data: dict[str, "Metrics | list"]) -> str:
+    def compare_multiple_runs(cls, runs_data: dict[str, "Metrics | list"], output_dir: str = "comparison_output") -> str:
         """
         Generates a single LaTeX table comparing multiple runs, with the best value bolded,
         and plots a combined ROC curve.
@@ -345,6 +435,7 @@ class Metrics:
         Args:
             runs_data (dict[str, "Metrics" | list]): A dictionary where keys are run names and values are either
                                                       a single Metrics object or a list of Metrics objects.
+            output_dir (str): Where the combined ROC plot is saved.
 
         Returns:
             str: The LaTeX table code as a string.
@@ -354,7 +445,7 @@ class Metrics:
 
         # Plot the combined ROC curve
         metrics_instance = cls()
-        metrics_instance._plot_roc_curve(runs_data, output_dir="comparison_output")
+        metrics_instance._plot_roc_curve(runs_data, output_dir=output_dir)
 
         run_names = list(runs_data.keys())
         processed_metrics_data = {}
@@ -418,7 +509,7 @@ class Metrics:
                     # Format value, include std dev if available, and bold if it's the best
                     formatted_val = f"${val:.4f}$"
                     if std_dev_metrics and std_dev_metrics.get(metric_key) is not None:
-                        formatted_val = f"${val:.4f} \pm {std_dev_metrics.get(metric_key):.4f}$"
+                        formatted_val = rf"${val:.4f} \pm {std_dev_metrics.get(metric_key):.4f}$"
 
                     if val == best_values.get(metric_key):
                         formatted_val = f"\\textbf{{{formatted_val}}}"
@@ -433,36 +524,3 @@ class Metrics:
         latex_str += "\\end{table}\n"
 
         return latex_str
-
-def example():
-    try:
-        # Example 1: A single run
-        run1 = Metrics.from_pickle(Path("results/run1_predictions.pkl"))
-        run1.save_all(output_dir="run1_output")
-        print("Metrics and plots for Run 1 saved to run1_output/")
-
-        # Example 2: A list of runs for one model to show average and std dev
-        run_list_A = [
-            Metrics.from_pickle(Path("results/run_A_1.pkl")),
-            Metrics.from_pickle(Path("results/run_A_2.pkl")),
-            Metrics.from_pickle(Path("results/run_A_3.pkl")),
-        ]
-        
-        # Example 3: A single run for another model
-        run_B = Metrics.from_pickle(Path("results/run_B_1.pkl"))
-
-        runs_to_compare = {
-            "Model A": run_list_A,
-            "Model B": run_B,
-        }
-        
-        comparison_table = Metrics.compare_multiple_runs(runs_to_compare)
-        print("\n--- Comparison LaTeX Table ---\n")
-        print(comparison_table)
-        
-        with open("comparison_table.tex", "w") as f:
-            f.write(comparison_table)
-        print("\nComparison table saved to comparison_table.tex")
-        
-    except FileNotFoundError as e:
-        print(f"Error: {e}. Please ensure the prediction pickle files exist.")

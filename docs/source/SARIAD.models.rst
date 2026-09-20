@@ -1,37 +1,19 @@
 SARIAD.models package
 =====================
 
-Submodules
-----------
+Subpackages
+-----------
 
-SARIAD.models.anomalib\_models module
--------------------------------------
+.. toctree::
+   :maxdepth: 4
 
-.. automodule:: SARIAD.models.anomalib_models
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-SARIAD.models.autoencoder module
---------------------------------
-
-.. automodule:: SARIAD.models.autoencoder
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-SARIAD.models.transformer module
---------------------------------
-
-.. automodule:: SARIAD.models.transformer
-   :members:
-   :undoc-members:
-   :show-inheritance:
+   SARIAD.models.components
+   SARIAD.models.image
 
 Module contents
 ---------------
 
 .. automodule:: SARIAD.models
    :members:
-   :undoc-members:
    :show-inheritance:
+   :undoc-members:
