@@ -5,3 +5,11 @@ demo/datasets/
 demo/results/
 *.pyc
 __pycache__/
+results/
+SARIAD/results/
+docs/_build/
+*.egg-info/
+.pytest_cache/
+.venv/
+dist/
+build/
