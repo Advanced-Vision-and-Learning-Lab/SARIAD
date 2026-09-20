@@ -12,6 +12,7 @@ _MODELS = {
     "SARATRX": ".image.SARATRX",
     "YOLOAnomaly": ".image.YOLO",
     "PadimACE": ".image.PadimACE",
+    "MSFA": ".image.MFSA",  # the package directory keeps its historical spelling
 }
 
 __all__ = sorted(_MODELS)
