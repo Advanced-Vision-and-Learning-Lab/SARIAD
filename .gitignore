@@ -15,3 +15,5 @@ dist/
 build/
 *.pth
 *.ckpt
+*.pt
+comparison_output/
