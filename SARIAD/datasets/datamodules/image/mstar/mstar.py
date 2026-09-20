@@ -6,6 +6,9 @@ import json, glob, os, cv2
 import numpy as np
 from SARIAD.utils.normal_gen import remove_target
 from . import mstar_importer
+import logging
+
+logger = logging.getLogger(__name__)
 
 NAME = "PLMSTAR"
 DRIVE_FILE_ID = "1TT3SrDMW8ICcknoAXXZLLCLk0X6L1nAL"
@@ -65,7 +68,7 @@ class MSTAR(Folder):
 
     def generate_cat(self, src_path, anom_dir, norm_dir, mask_dir, json_dir, split, chip_size, patch_size, use_phase, dataset):
         if not os.path.exists(src_path):
-            print(f'{src_path} does not exist')
+            logger.info(f'{src_path} does not exist')
             return
 
         category_name = os.path.basename(src_path)
@@ -79,7 +82,7 @@ class MSTAR(Folder):
         for directory in [category_anom_dir, category_norm_dir, category_mask_dir, category_json_dir]:
             os.makedirs(directory, exist_ok=True)
 
-        print(f"Processing category: {category_name}")
+        logger.info(f"Processing category: {category_name}")
         _mstar = mstar_importer.MSTAR(
             name=dataset, split=split, chip_size=chip_size, patch_size=patch_size, use_phase=use_phase, stride=1
         )

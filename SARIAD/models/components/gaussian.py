@@ -15,7 +15,6 @@ listing the ``C_i`` in the same order.
 import torch
 from torch import nn
 
-from anomalib.data.utils.tiler import Tiler  # noqa: F401  (type of PadimModel.tiler)
 from anomalib.models.components import MultiVariateGaussian
 from anomalib.models.image.padim import Padim
 from anomalib.models.image.padim.anomaly_map import AnomalyMapGenerator

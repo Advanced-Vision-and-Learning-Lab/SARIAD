@@ -1,5 +1,8 @@
 import matplotlib.pyplot as plt
 import cv2
+import logging
+
+logger = logging.getLogger(__name__)
 
 def img_debug(title="Image Comparison", **images):
     """
@@ -12,7 +15,7 @@ def img_debug(title="Image Comparison", **images):
                          Example: img1=image_data1, img2=image_data2
     """
     if not images:
-        print("No images provided to display.")
+        logger.info("No images provided to display.")
         return
 
     num_images = len(images)

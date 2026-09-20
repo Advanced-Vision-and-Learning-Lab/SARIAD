@@ -1,6 +1,5 @@
 """Model tests that run offline (pretrained weights are never downloaded)."""
 
-import numpy as np
 import pytest
 import torch
 

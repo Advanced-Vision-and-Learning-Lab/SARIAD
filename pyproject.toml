@@ -57,6 +57,9 @@ docs = [
     "sphinx-design>=0.6.1",
 ]
 
+[project.scripts]
+sariad = "SARIAD.config.run:main"
+
 [project.urls]
 Homepage = "https://github.com/Advanced-Vision-and-Learning-Lab/SARIAD"
 

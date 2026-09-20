@@ -2,6 +2,9 @@ import os, shutil, requests, zipfile, tarfile, rarfile, gdown, kagglehub
 from tqdm import tqdm
 
 from SARIAD.config import DATASETS_PATH
+import logging
+
+logger = logging.getLogger(__name__)
 
 def fetch_blob(path, link="", drive_file_id="", kaggle="", is_archive=True, ext="zip"):
     """
@@ -21,14 +24,14 @@ def fetch_blob(path, link="", drive_file_id="", kaggle="", is_archive=True, ext=
     """
     if is_archive:
         if os.path.exists(path) and os.path.isdir(path) and len(os.listdir(path)) > 0:
-            print(f"Dataset found locally at: {path}")
+            logger.info(f"Dataset found locally at: {path}")
             return
     else:
         if os.path.exists(path) and os.path.isfile(path):
-            print(f"File found locally at: {path}")
+            logger.info(f"File found locally at: {path}")
             return
 
-    print(f"Dataset not found locally at {path}. Downloading...")
+    logger.info(f"Dataset not found locally at {path}. Downloading...")
     if is_archive:
         os.makedirs(path, exist_ok=True)
     else:
@@ -55,12 +58,12 @@ def fetch_blob(path, link="", drive_file_id="", kaggle="", is_archive=True, ext=
         progress_bar.close()
 
         if is_archive:
-            print(f"Extracting the {ext} archive...")
+            logger.info(f"Extracting the {ext} archive...")
             _extract_archive(temp_target_path, path, ext)
             os.remove(temp_target_path)
-            print(f"Downloaded and extracted to {path}.")
+            logger.info(f"Downloaded and extracted to {path}.")
         else:
-            print(f"Downloaded file to {path}.")
+            logger.info(f"Downloaded file to {path}.")
 
     elif drive_file_id:
         if is_archive:
@@ -68,20 +71,20 @@ def fetch_blob(path, link="", drive_file_id="", kaggle="", is_archive=True, ext=
         else:
             temp_target_path = path # For single files, download directly to the final path
         
-        print(f"Downloading from Google Drive ID: {drive_file_id}")
+        logger.info(f"Downloading from Google Drive ID: {drive_file_id}")
         gdown.download(f"https://drive.google.com/uc?id={drive_file_id}", temp_target_path, quiet=False)
         
         if is_archive:
-            print(f"Extracting the {ext} archive...")
+            logger.info(f"Extracting the {ext} archive...")
             _extract_archive(temp_target_path, path, ext)
             os.remove(temp_target_path)
-            print(f"Downloaded and extracted to {path}.")
+            logger.info(f"Downloaded and extracted to {path}.")
         else:
-            print(f"Downloaded file to {path}.")
+            logger.info(f"Downloaded file to {path}.")
 
     elif kaggle:
         downloaded_kaggle_path = kagglehub.dataset_download(kaggle)
-        print(f"KaggleHub {kaggle} dataset downloaded to: {downloaded_kaggle_path}")
+        logger.info(f"KaggleHub {kaggle} dataset downloaded to: {downloaded_kaggle_path}")
         
         os.makedirs(path, exist_ok=True) # Always treat kaggle as an archive/dataset for now
 
@@ -93,7 +96,7 @@ def fetch_blob(path, link="", drive_file_id="", kaggle="", is_archive=True, ext=
             else:
                 shutil.copy2(s, d)
         
-        print(f"KaggleHub {kaggle} dataset copied to: {path}")
+        logger.info(f"KaggleHub {kaggle} dataset copied to: {path}")
 
     else:
         raise ValueError("Must provide either a `link`, `drive_file_id`, or `kaggle` slug.")

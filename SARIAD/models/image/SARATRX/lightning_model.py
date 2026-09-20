@@ -32,7 +32,6 @@ from anomalib import LearningType
 from anomalib.data import Batch
 from anomalib.metrics import Evaluator
 from anomalib.models.components import AnomalibModule
-from anomalib.post_processing import PostProcessor
 from anomalib.pre_processing import PreProcessor
 from anomalib.visualization import Visualizer
 from SARIAD.models.image.SARATRX.SARATRX.pretraining.util.lr_decay import param_groups_lrd

@@ -6,6 +6,9 @@ from anomalib.data import Folder
 from SARIAD.config import DATASETS_PATH, DEBUG
 from SARIAD.utils.blob_utils import fetch_blob
 from SARIAD.utils.normal_gen import generate_normal
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 NAME = "Official-SSDD-OPEN"
@@ -31,10 +34,10 @@ class SSDD(Folder):
         super().__init__(
             name=NAME,
             root=os.path.join(self.dataset_root, sub_dataset),
-            mask_dir=f"train/masks",
-            normal_dir=f"train/norm",
-            abnormal_dir=f"train/anom",
-            normal_test_dir=f"test/norm",
+            mask_dir="train/masks",
+            normal_dir="train/norm",
+            abnormal_dir="train/anom",
+            normal_test_dir="test/norm",
             train_batch_size=self.train_batch_size,
             eval_batch_size=self.eval_batch_size,
             num_workers=num_workers,
@@ -48,10 +51,10 @@ class SSDD(Folder):
         target_dir = base_root_dir
 
         if os.path.exists(os.path.join(target_dir, "train", "anom")):
-            print("Dataset already restructured. Skipping.")
+            logger.info("Dataset already restructured. Skipping.")
             return
 
-        print("Restructuring dataset...")
+        logger.info("Restructuring dataset...")
 
         os.makedirs(os.path.join(target_dir, "train", "anom"), exist_ok=True)
         os.makedirs(os.path.join(target_dir, "test", "anom"), exist_ok=True)
@@ -88,14 +91,14 @@ class SSDD(Folder):
                         # Save the new binary mask
                         cv2.imwrite(dest_path, binary_mask)
                     else:
-                        print(f"Warning: Could not read mask at {source_path}. Skipping.")
+                        logger.warning(f"Could not read mask at {source_path}. Skipping.")
 
             if os.path.exists(norm_source_dir):
                 for filename in os.listdir(norm_source_dir):
                     shutil.copy(os.path.join(norm_source_dir, filename), norm_dest_dir)
 
         shutil.rmtree(voc_style_dir)
-        print("Dataset restructuring complete.")
+        logger.info("Dataset restructuring complete.")
 
     def split_masks(self):
         base_root_dir = f"{self.dataset_root}/PSeg_SSDD/voc_style"
@@ -113,10 +116,10 @@ class SSDD(Folder):
             and os.path.exists(test_masks_dir)
             and os.listdir(test_masks_dir)
         ):
-            print("Masks are already split. Skipping mask splitting.")
+            logger.info("Masks are already split. Skipping mask splitting.")
             return
 
-        print("Splitting masks into train and test directories.")
+        logger.info("Splitting masks into train and test directories.")
 
         os.makedirs(train_masks_dir, exist_ok=True)
         os.makedirs(test_masks_dir, exist_ok=True)
@@ -145,13 +148,12 @@ class SSDD(Folder):
             elif mask_file in test_image_files:
                 destination_mask_path = os.path.join(test_masks_dir, mask_file)
             else:
-                print(
-                    f"Warning: Mask {mask_file} does not correspond to any image in train or test sets. Skipping."
+                logger.warning(f"Mask {mask_file} does not correspond to any image in train or test sets. Skipping."
                 )
                 continue
             shutil.copy2(source_mask_path, destination_mask_path)
 
-        print("Mask splitting complete.")
+        logger.info("Mask splitting complete.")
 
     def generate_norm(self):
         base_root_dir = f"{self.dataset_root}/PSeg_SSDD/voc_style"
@@ -166,18 +168,18 @@ class SSDD(Folder):
                 break
 
         if all_norm_dirs_exist:
-            print("Normal image directories already exist and contain files. Skipping generation.")
+            logger.info("Normal image directories already exist and contain files. Skipping generation.")
             return
 
-        print("Could not find normal image directories, generating.")
+        logger.info("Could not find normal image directories, generating.")
 
         for set_name, original_images_subdir in sets.items():
             original_images_dir = os.path.join(base_root_dir, original_images_subdir)
-            mask_images_dir = os.path.join(base_root_dir, f"JPEGImages_PSeg_GT_Mask")
+            mask_images_dir = os.path.join(base_root_dir, "JPEGImages_PSeg_GT_Mask")
             normal_images_dir = os.path.join(base_root_dir, f"JPEGImages_{set_name}_norm")
 
             os.makedirs(normal_images_dir, exist_ok=True)
-            print(f"Generating normal images for {set_name} set in: {normal_images_dir}")
+            logger.info(f"Generating normal images for {set_name} set in: {normal_images_dir}")
 
             image_files = [f for f in os.listdir(original_images_dir) if f.endswith((".jpg", ".jpeg", ".png"))]
             for image_file in tqdm(image_files, desc=f"Generating normal images for {set_name}"):
@@ -188,10 +190,10 @@ class SSDD(Folder):
                 mask = cv2.imread(mask_path)
 
                 if image is None:
-                    print(f"Warning: Could not load image {image_path}")
+                    logger.warning(f"Could not load image {image_path}")
                     continue
                 if mask is None:
-                    print(f"Warning: Could not load mask {mask_path}")
+                    logger.warning(f"Could not load mask {mask_path}")
                     continue
 
                 if len(mask.shape) == 3:
@@ -203,4 +205,4 @@ class SSDD(Folder):
                 normal_image_path = os.path.join(normal_images_dir, image_file)
                 cv2.imwrite(normal_image_path, normal_image)
 
-        print("Normal image generation complete for all sets.")
+        logger.info("Normal image generation complete for all sets.")
