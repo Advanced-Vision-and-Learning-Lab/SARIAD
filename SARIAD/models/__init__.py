@@ -11,6 +11,7 @@ import importlib
 _MODELS = {
     "SARATRX": ".image.SARATRX",
     "YOLOAnomaly": ".image.YOLO",
+    "PadimACE": ".image.PadimACE",
 }
 
 __all__ = sorted(_MODELS)

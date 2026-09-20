@@ -38,6 +38,13 @@ experiments:
   #   model: Patchcore
   #   runs: 1
   #
+  # PaDiM-ACE needs a folder of anomalous *training* images (target signatures); keep them
+  # disjoint from the images used for testing.
+  # - name: "PadimACE_on_SSDD"
+  #   dataset: SSDD
+  #   preprocessor: null
+  #   model: PadimACE
+  #
   # - name: "SARATRX_on_MSTAR"
   #   dataset: MSTAR
   #   preprocessor: null
@@ -58,6 +65,10 @@ datasets:
 
 models:
   Padim: null
+  # PadimACE:
+  #   signature_dir: "datasets/SSDD_signature_images"
+  #   cov_type: full            # full | diagonal | isotropic
+  #   whitening: reference      # reference (original PaDiM-ACE code) | standard (textbook ACE)
   # SARATRX:
   #   mask_ratio: 0.75
 
