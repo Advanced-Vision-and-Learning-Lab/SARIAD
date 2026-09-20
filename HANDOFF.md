@@ -4,11 +4,10 @@ Written for the next Claude Code session (or person) picking this up on a machin
 Everything below was done on a CPU-only WSL box with no datasets, so the GPU/real-data validation is the
 main remaining work. Read "What was and was not verified" before trusting any number.
 
-- **Branch:** `fix/open-issues` (branched from `main` at `1f9eae6`), 15 commits. One commit per issue with
-  `Fixes #N` in the message (they auto-close when merged into the default branch). **It was NOT pushed**: the WSL
-  box had no GitHub credentials. The repo lives on the Windows disk (`C:\Users\jpeep\Documents\SARIAD`), so push from
-  Windows: `git push -u origin fix/open-issues`. **No PR has been opened and nothing was commented on or closed on
-  GitHub** (`gh` is not installed there).
+- **Branch:** `fix/open-issues` (branched from `main` at `1f9eae6`), pushed to `origin` (16 commits). One commit per
+  issue with `Fixes #N` in the message (they auto-close when merged into the default branch). **No PR has been opened
+  and nothing was commented on or closed on GitHub** (`gh` is not installed on the WSL box). Open the PR at
+  https://github.com/Advanced-Vision-and-Learning-Lab/SARIAD/pull/new/fix/open-issues
 - **Issues:** https://github.com/Advanced-Vision-and-Learning-Lab/SARIAD/issues (17 were open).
 - **Reference paper:** https://arxiv.org/abs/2504.08115 (SARIAD). PaDiM-ACE: https://arxiv.org/abs/2504.08049.
 
