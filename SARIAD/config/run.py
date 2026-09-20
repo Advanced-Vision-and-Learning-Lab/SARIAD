@@ -207,10 +207,9 @@ def run_experiments(config: dict) -> dict:
         raise RuntimeError("No experiment completed successfully; nothing to compare.")
 
     comparison_data = {name: runs if len(runs) > 1 else runs[0] for name, runs in all_runs_data.items()}
-    comparison_table = inf.Metrics.compare_multiple_runs(comparison_data)
-
     output_path = Path(settings.get("output_dir", "results"))
     output_path.mkdir(parents=True, exist_ok=True)
+    comparison_table = inf.Metrics.compare_multiple_runs(comparison_data, output_dir=str(output_path))
     (output_path / "comparison_table.tex").write_text(comparison_table)
     logger.info("All experiments complete. Comparison table saved to %s/comparison_table.tex", output_path)
     return all_runs_data
