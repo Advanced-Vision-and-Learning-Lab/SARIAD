@@ -98,6 +98,17 @@ def fetch_blob(path, link="", drive_file_id="", kaggle="", is_archive=True, ext=
     else:
         raise ValueError("Must provide either a `link`, `drive_file_id`, or `kaggle` slug.")
 
+def _check_member_path(base_dir, member_name):
+    """
+    Raise if extracting ``member_name`` into ``base_dir`` would escape it (path traversal,
+    e.g. ``../../etc/passwd`` or an absolute path inside an untrusted archive).
+    """
+    base = os.path.realpath(base_dir)
+    target = os.path.realpath(os.path.join(base, member_name))
+    if target != base and not target.startswith(base + os.sep):
+        raise ValueError(f"Unsafe path in archive: {member_name!r}")
+
+
 def _extract_archive(archive_path, extract_to, ext):
     """
     Extracts an archive file to a specified directory, showing progress with tqdm.
@@ -119,22 +130,26 @@ def _extract_archive(archive_path, extract_to, ext):
         with zipfile.ZipFile(archive_path, 'r') as zip_ref:
             members = zip_ref.namelist()
             for member in tqdm(members, desc=f"Extracting {os.path.basename(archive_path)}"):
+                _check_member_path(temp_extract_dir, member)
                 zip_ref.extract(member, temp_extract_dir)
     elif ext == "rar":
         with rarfile.RarFile(archive_path) as rar_ref:
             members = rar_ref.infolist()
             for member in tqdm(members, desc=f"Extracting {os.path.basename(archive_path)}"):
+                _check_member_path(temp_extract_dir, member.filename)
                 rar_ref.extract(member, temp_extract_dir)
     elif ext == "tar.gz":
         with tarfile.open(archive_path, 'r:gz') as tar_ref:
             members = tar_ref.getmembers()
             for member in tqdm(members, desc=f"Extracting {os.path.basename(archive_path)}"):
-                tar_ref.extract(member, temp_extract_dir)
+                _check_member_path(temp_extract_dir, member.name)
+                tar_ref.extract(member, temp_extract_dir, filter="data")
     elif ext == "tar":
         with tarfile.open(archive_path, 'r:') as tar_ref:
             members = tar_ref.getmembers()
             for member in tqdm(members, desc=f"Extracting {os.path.basename(archive_path)}"):
-                tar_ref.extract(member, temp_extract_dir)
+                _check_member_path(temp_extract_dir, member.name)
+                tar_ref.extract(member, temp_extract_dir, filter="data")
     else:
         raise ValueError(f"Unsupported archive extension: {ext}. Supported: zip, rar, tar, tar.gz")
 
