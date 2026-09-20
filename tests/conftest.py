@@ -7,6 +7,9 @@ import numpy as np
 import pytest
 
 os.environ.setdefault("MLFLOW_DISABLE_AGENT_HINT", "1")
+# The reports only save figures. Without this, matplotlib picks the Tk backend on Windows/desktop Linux, and a
+# broken or locked Tcl install then fails runs at random (TclError: Can't find a usable init.tcl).
+os.environ.setdefault("MPLBACKEND", "Agg")
 
 
 @pytest.fixture(scope="session")
