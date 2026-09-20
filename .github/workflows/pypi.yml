@@ -10,8 +10,10 @@ jobs:
     - uses: actions/checkout@v4
       with:
         persist-credentials: false
-        # Not "recursive": SARATR-X has a nested submodule (detection/apex) without a URL, which fails the checkout.
-        submodules: true
+    # Not through actions/checkout: with submodules enabled it always runs `git submodule foreach --recursive`,
+    # which fails on the SARATR-X fork (its nested detection/apex submodule has no URL in .gitmodules).
+    - name: Check out the submodules
+      run: git submodule update --init
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
@@ -35,8 +37,9 @@ jobs:
     - uses: actions/checkout@v4
       with:
         persist-credentials: false
-        submodules: true
         fetch-depth: 0
+    - name: Check out the submodules
+      run: git submodule update --init
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
